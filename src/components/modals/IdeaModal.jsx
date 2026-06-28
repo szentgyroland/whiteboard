@@ -76,7 +76,7 @@ export default function IdeaModal({ projectId, idea, initialPosition, existingTh
         {/* Header with theme colour accent */}
         <div
           className="px-6 py-4 border-b border-slate-100 flex items-center justify-between"
-          style={{ borderLeft: `4px solid ${themeColor.border}` }}
+          style={{ borderLeft: `4px solid ${themeColor.border}` }}  /* accent color matches theme */
         >
           <h2 className="text-lg font-semibold text-slate-800">
             {isEdit ? 'Edit Idea' : 'New Idea'}
@@ -129,7 +129,7 @@ export default function IdeaModal({ projectId, idea, initialPosition, existingTh
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Theme
               <span className="ml-1.5 text-xs text-slate-400 font-normal">
-                (groups related ideas with the same colour)
+                (groups related ideas with the same color)
               </span>
             </label>
             <input
