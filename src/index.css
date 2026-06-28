@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #F8FAFC;
+  color: #1E293B;
+}
+
+/* ── Canvas ──────────────────────────────────────────────────── */
+.canvas-container {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background-color: #F1F5F9;
+  background-image:
+    radial-gradient(circle, #CBD5E1 1px, transparent 1px);
+  background-size: 24px 24px;
+  cursor: default;
+  user-select: none;
+}
+
+.canvas-container.panning { cursor: grabbing; }
+.canvas-container.connecting { cursor: crosshair; }
+
+.canvas-world {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* ── Idea Node ───────────────────────────────────────────────── */
+.idea-node {
+  position: absolute;
+  width: 180px;
+  cursor: grab;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.idea-node:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.14);
+  z-index: 10;
+}
+
+.idea-node.selected {
+  border-color: #6366F1 !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.25), 0 6px 20px rgba(0,0,0,0.14);
+  z-index: 20;
+}
+
+.idea-node.dragging {
+  cursor: grabbing;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+  z-index: 30;
+}
+
+/* ── Connection ports ────────────────────────────────────────── */
+.port {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #6366F1;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+  cursor: crosshair;
+  z-index: 40;
+  transform: scale(0.6);
+}
+
+.idea-node:hover .port,
+.idea-node.selected .port {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
