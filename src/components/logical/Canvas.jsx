@@ -807,7 +807,7 @@ export default function Canvas({ projectId }) {
             onClick={deleteSelectedIdeas}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded-xl transition-colors font-medium"
           >
-            Delete all
+            {selectedIds.length === 1 ? 'Delete' : 'Delete all'}
           </button>
           <button
             onClick={() => setSelectedIds([])}
