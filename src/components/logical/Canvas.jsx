@@ -63,6 +63,14 @@ export default function Canvas({ projectId }) {
     }
   }, [pan, zoom])
 
+  const findIdeaIdAtPointer = useCallback((clientX, clientY, excludeId = null) => {
+    const target = document.elementFromPoint(clientX, clientY)
+    const nodeEl = target?.closest?.('.idea-node[data-idea-id]')
+    const ideaId = nodeEl?.dataset?.ideaId ?? null
+    if (!ideaId || ideaId === excludeId) return null
+    return ideaId
+  }, [])
+
   // ── Zoom ───────────────────────────────────────────────────────────────
   const handleWheel = useCallback((e) => {
     e.preventDefault()
@@ -164,20 +172,13 @@ export default function Canvas({ projectId }) {
         setTempLine({ x1: src.x, y1: src.y, x2: pos.x, y2: pos.y })
       }
 
-      const target = ideas.find(i =>
-        i.id !== d.fromId &&
-        pos.x >= i.x - NODE_W / 2 &&
-        pos.x <= i.x + NODE_W / 2 &&
-        pos.y >= i.y - NODE_H / 2 &&
-        pos.y <= i.y + NODE_H / 2
-      )
-      const targetId = target?.id ?? null
+      const targetId = findIdeaIdAtPointer(e.clientX, e.clientY, d.fromId)
       if (hoverTargetRef.current !== targetId) {
         hoverTargetRef.current = targetId
         setHoverTarget(targetId)
       }
     }
-  }, [zoom, projectId, ideas, toCanvas, updateIdea])
+  }, [zoom, projectId, ideas, toCanvas, updateIdea, findIdeaIdAtPointer])
 
   // ── Pointer up ─────────────────────────────────────────────────────────
   const handlePointerUp = useCallback((e) => {
@@ -186,6 +187,7 @@ export default function Canvas({ projectId }) {
 
     if (d.type === 'connect') {
       const targetId = hoverTargetRef.current
+        ?? findIdeaIdAtPointer(e.clientX, e.clientY, d.fromId)
       if (targetId && targetId !== d.fromId) {
         addConnection(projectId, d.fromId, targetId)
       }
@@ -197,7 +199,18 @@ export default function Canvas({ projectId }) {
 
     // If panning and barely moved → just a click (deselect handled by onPointerDown)
     dragRef.current = null
-  }, [projectId, addConnection])
+  }, [projectId, addConnection, findIdeaIdAtPointer])
+
+  useEffect(() => {
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [handlePointerMove, handlePointerUp])
 
   // ── Double click on canvas → create idea ──────────────────────────────
   const handleDoubleClick = useCallback((e) => {
@@ -235,8 +248,6 @@ export default function Canvas({ projectId }) {
         ref={containerRef}
         className={containerCls}
         onPointerDown={handleCanvasPointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
         onDoubleClick={handleDoubleClick}
       >
         <div
