@@ -254,7 +254,11 @@ export default function Canvas({ projectId }) {
       >
         <div
           className="canvas-world"
-          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+          style={{
+            width: '100%',
+            height: '100%',
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          }}
         >
           {/* SVG layer: theme groups + connections */}
           <svg
@@ -263,7 +267,8 @@ export default function Canvas({ projectId }) {
               top: 0, left: 0,
               overflow: 'visible',
               pointerEvents: 'none',
-              width: 0, height: 0,
+              width: '100%',
+              height: '100%',
             }}
           >
             {/* Theme group backgrounds */}
