@@ -38,6 +38,7 @@ export default function IdeaNode({
 
   return (
     <div
+      data-idea-id={idea.id}
       className={`idea-node ${selected ? 'selected' : ''}`}
       style={{
         left: idea.x,
