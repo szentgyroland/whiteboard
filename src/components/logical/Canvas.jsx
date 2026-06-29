@@ -434,9 +434,10 @@ export default function Canvas({ projectId }) {
     return acc
   }, {})
 
+  const selectedIdSet = new Set(selectedIds)
   const selectedGroups = groups.filter(group => {
     const members = group.ideaIds ?? []
-    return members.length > 0 && members.every(id => selectedIds.includes(id))
+    return members.length > 0 && members.every(id => selectedIdSet.has(id))
   })
 
   const groupSelectedIdeas = () => {
