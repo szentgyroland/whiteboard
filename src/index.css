@@ -92,3 +92,18 @@ html, body, #root {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+/* ── Dark mode canvas ────────────────────────────────────────── */
+.dark .canvas-container {
+  background-color: #1E293B;
+  background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+}
+
+html.dark body,
+html.dark #root {
+  background: #0F172A;
+  color: #E2E8F0;
+}
+
+html.dark ::-webkit-scrollbar-thumb { background: #475569; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #64748B; }

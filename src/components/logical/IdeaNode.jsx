@@ -95,7 +95,7 @@ export default function IdeaNode({
 
         {/* Description (truncated) */}
         {idea.description && (
-          <p className="text-[11px] text-slate-500 mt-1 leading-snug line-clamp-2">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug line-clamp-2">
             {idea.description}
           </p>
         )}

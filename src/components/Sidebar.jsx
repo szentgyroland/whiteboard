@@ -23,15 +23,15 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="flex flex-col w-60 min-w-[15rem] bg-white border-r border-slate-200 overflow-hidden">
+      <aside className="flex flex-col w-60 min-w-[15rem] bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 overflow-hidden">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-4 h-14 border-b border-slate-200 flex-shrink-0">
+        <div className="flex items-center gap-2.5 px-4 h-14 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
           <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-white" viewBox="0 0 16 16" fill="currentColor">
               <path d="M2 2h5v5H2V2zm7 0h5v5H9V2zM2 9h5v5H2V9zm7 0h5v5H9V9z"/>
             </svg>
           </div>
-          <span className="font-bold text-slate-800 text-sm tracking-wide">Whiteboard</span>
+          <span className="font-bold text-slate-800 dark:text-slate-100 text-sm tracking-wide">Whiteboard</span>
         </div>
 
         {/* Project list */}
@@ -40,7 +40,7 @@ export default function Sidebar() {
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Projects</span>
             <button
               onClick={() => { setEditProject(null); setShowModal(true) }}
-              className="w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-colors"
               title="New project"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -70,8 +70,8 @@ export default function Sidebar() {
                 onClick={() => setCurrentProject(project.id)}
                 className={`group flex items-center gap-2.5 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
                   currentProjectId === project.id
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'text-slate-600 hover:bg-slate-50'
+                    ? 'bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                 }`}
               >
                 <span
@@ -85,7 +85,7 @@ export default function Sidebar() {
                   <span className="flex gap-0.5 flex-shrink-0">
                     <button
                       onClick={e => handleEdit(e, project)}
-                      className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200"
+                      className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600"
                       title="Edit"
                     >
                       <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
@@ -94,7 +94,7 @@ export default function Sidebar() {
                     </button>
                     <button
                       onClick={e => handleDelete(e, project.id)}
-                      className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50"
+                      className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
                       title="Delete"
                     >
                       <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
@@ -109,7 +109,7 @@ export default function Sidebar() {
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-slate-100">
+        <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-700">
           <p className="text-xs text-slate-400 text-center">Stored locally in your browser</p>
         </div>
       </aside>

@@ -34,9 +34,9 @@ export default function BoardView({ projectId }) {
   const moveIdea = (id, status) => updateIdea(projectId, id, { status })
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-50">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900">
       {/* ── Toolbar ───────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-200 bg-white flex-shrink-0 flex-wrap">
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex-shrink-0 flex-wrap">
         <button
           onClick={() => setCreating(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
@@ -57,7 +57,7 @@ export default function BoardView({ projectId }) {
             placeholder="Search ideas…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-44 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg w-44 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400"
           />
         </div>
 
@@ -66,7 +66,7 @@ export default function BoardView({ projectId }) {
           <select
             value={filterTheme}
             onChange={e => setFilterTheme(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+            className="text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100"
           >
             <option value="">All themes</option>
             {themes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -77,7 +77,7 @@ export default function BoardView({ projectId }) {
         <select
           value={filterPri}
           onChange={e => setFilterPri(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+          className="text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100"
         >
           <option value="">All priorities</option>
           {Object.entries(PRIORITY_CONFIG).map(([k, v]) => (
@@ -97,12 +97,12 @@ export default function BoardView({ projectId }) {
             return (
               <div
                 key={col.id}
-                className="flex flex-col w-72 min-w-[18rem] bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                className="flex flex-col w-72 min-w-[18rem] bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden"
               >
                 {/* Column header */}
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-700">
                   <span style={{ color: conf.color }} className="text-base">{col.icon}</span>
-                  <span className="text-sm font-semibold text-slate-700">{col.label}</span>
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{col.label}</span>
                   <span
                     className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full"
                     style={{ background: conf.bg, color: conf.color }}
@@ -114,7 +114,7 @@ export default function BoardView({ projectId }) {
                 {/* Cards */}
                 <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
                   {colIdeas.length === 0 && (
-                    <p className="text-xs text-slate-300 text-center py-6">No ideas here</p>
+                    <p className="text-xs text-slate-300 dark:text-slate-600 text-center py-6">No ideas here</p>
                   )}
                   {colIdeas.map(idea => (
                     <BoardCard
@@ -167,7 +167,7 @@ function BoardCard({ idea, onEdit, onMove, onDelete }) {
 
   return (
     <div
-      className="relative bg-white border border-slate-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+      className="relative bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
       onClick={onEdit}
     >
       {/* Left accent bar */}
@@ -197,11 +197,11 @@ function BoardCard({ idea, onEdit, onMove, onDelete }) {
         </div>
 
         {/* Title */}
-        <p className="text-sm font-semibold text-slate-800 leading-snug">{idea.title || 'Untitled'}</p>
+        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug">{idea.title || 'Untitled'}</p>
 
         {/* Description */}
         {idea.description && (
-          <p className="text-xs text-slate-500 mt-1 leading-snug line-clamp-2">{idea.description}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-snug line-clamp-2">{idea.description}</p>
         )}
 
         {/* Footer */}
@@ -224,7 +224,7 @@ function BoardCard({ idea, onEdit, onMove, onDelete }) {
             {prevCol && (
               <button
                 onClick={() => onMove(prevCol)}
-                className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600"
                 title={`Move to ${STATUS_CONFIG[prevCol].label}`}
               >
                 <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
@@ -235,7 +235,7 @@ function BoardCard({ idea, onEdit, onMove, onDelete }) {
             {nextCol && (
               <button
                 onClick={() => onMove(nextCol)}
-                className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600"
                 title={`Move to ${STATUS_CONFIG[nextCol].label}`}
               >
                 <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
@@ -245,7 +245,7 @@ function BoardCard({ idea, onEdit, onMove, onDelete }) {
             )}
             <button
               onClick={onDelete}
-              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50"
+              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
               title="Delete"
             >
               <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
