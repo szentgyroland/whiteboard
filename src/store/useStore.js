@@ -4,6 +4,16 @@ import { v4 as uuidv4 } from 'uuid'
 
 const MIN_GROUP_SIZE = 2
 
+function nextGroupName(groups) {
+  const maxNumber = groups.reduce((max, group) => {
+    const match = group?.name?.trim().match(/^Group\s+(\d+)$/i)
+    if (!match) return max
+    const value = Number(match[1])
+    return Number.isFinite(value) ? Math.max(max, value) : max
+  }, 0)
+  return `Group ${maxNumber + 1}`
+}
+
 const useStore = create(
   persist(
     (set, get) => ({
@@ -181,7 +191,7 @@ const useStore = create(
                 {
                   id,
                   ideaIds: uniqueIdeaIds,
-                  name: `Group ${currentGroups.length + 1}`,
+                  name: nextGroupName(currentGroups),
                   createdAt: Date.now(),
                 },
               ],

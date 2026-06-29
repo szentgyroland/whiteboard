@@ -62,6 +62,13 @@ function rectsIntersect(a, b) {
   )
 }
 
+function getGroupLabel(group) {
+  const explicitName = group?.name?.trim()
+  if (explicitName) return explicitName
+  const stableSuffix = group?.id?.split('-')?.[0]
+  return stableSuffix ? `Group ${stableSuffix}` : 'Group'
+}
+
 export default function Canvas({ projectId }) {
   const {
     ideas: allIdeas,
@@ -456,10 +463,9 @@ export default function Canvas({ projectId }) {
   const zoomOut = () => setZoom(z => Math.max(MIN_ZOOM, z / 1.2))
   const resetView = () => { setZoom(1); setPan({ x: 80, y: 60 }) }
 
-  const handleGroupNameClick = useCallback((e, group, index) => {
+  const handleGroupNameClick = useCallback((e, group) => {
     e.stopPropagation()
-    const fallbackName = `Group ${index + 1}`
-    const currentName = group.name?.trim() || fallbackName
+    const currentName = getGroupLabel(group)
     const nextName = prompt('Rename group', currentName)
     if (nextName === null) return
     const trimmed = nextName.trim()
@@ -505,7 +511,7 @@ export default function Canvas({ projectId }) {
             }}
           >
             {/* Group backgrounds */}
-            {groups.map((group, idx) => {
+            {groups.map((group) => {
               const bounds = groupBoundsById[group.id]
               if (!bounds) return null
               const sampleIdea = ideas.find(i => (group.ideaIds ?? []).includes(i.id))
@@ -533,9 +539,9 @@ export default function Canvas({ projectId }) {
                     fill={tc.text}
                     fontFamily="Inter, sans-serif"
                     style={{ pointerEvents: 'all', cursor: 'text' }}
-                    onClick={e => handleGroupNameClick(e, group, idx)}
+                    onClick={e => handleGroupNameClick(e, group)}
                   >
-                    {group.name?.trim() || `Group ${idx + 1}`}
+                    {getGroupLabel(group)}
                   </text>
                   <circle
                     cx={bounds.cx}

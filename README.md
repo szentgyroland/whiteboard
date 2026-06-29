@@ -27,12 +27,12 @@ Open http://localhost:5173
 | Create idea (canvas) | Double-click empty space, or click **Add Idea** |
 | Move idea | Drag the card |
 | Connect ideas | Hover a card → drag the small port circle to another card |
-| Marquee select ideas | Drag on empty canvas (Alt or right-drag to pan) |
+| Marquee select ideas | Right-drag on empty canvas |
 | Group / ungroup / delete selected ideas | Use the top selection toolbar after marquee or click selection |
 | Connect groups | Drag a port on one group bubble to another group bubble |
 | Delete connection | Click the connection line |
 | Edit idea | Double-click card, or select + click **Edit** |
-| Pan canvas | Alt/middle/right-drag empty space |
+| Pan canvas | Left-drag empty space, or Alt/middle-drag |
 | Zoom canvas | Scroll wheel |
 
 ## Stack
