@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
 
+const MIN_GROUP_SIZE = 2
+
 const useStore = create(
   persist(
     (set, get) => ({
@@ -108,7 +110,7 @@ const useStore = create(
               ...g,
               ideaIds: (g.ideaIds ?? []).filter(ideaId => ideaId !== id),
             }))
-            .filter(g => (g.ideaIds ?? []).length >= 2)
+            .filter(g => (g.ideaIds ?? []).length >= MIN_GROUP_SIZE)
           const remainingGroupIds = new Set(updatedGroups.map(g => g.id))
           return {
             ideas: {
@@ -167,7 +169,7 @@ const useStore = create(
       // ─── Group actions ────────────────────────────────────────────────────
       addGroup(projectId, ideaIds) {
         const uniqueIdeaIds = [...new Set(ideaIds)].filter(Boolean)
-        if (uniqueIdeaIds.length < 2) return null
+        if (uniqueIdeaIds.length < MIN_GROUP_SIZE) return null
         const id = uuidv4()
         set(state => ({
           groups: {
@@ -213,7 +215,7 @@ const useStore = create(
               ...g,
               ideaIds: (g.ideaIds ?? []).filter(id => !target.has(id)),
             }))
-            .filter(g => (g.ideaIds ?? []).length >= 2)
+            .filter(g => (g.ideaIds ?? []).length >= MIN_GROUP_SIZE)
           const remainingGroupIds = new Set(updatedGroups.map(g => g.id))
           return {
             ideas: {

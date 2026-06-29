@@ -6,6 +6,8 @@ import { getThemeColor } from '../../utils/colors'
 
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 3
+const GROUP_PADDING = 28
+const GROUP_BORDER_RADIUS = 26
 
 // Quadratic bezier path between two center points
 function makePath(x1, y1, x2, y2) {
@@ -32,7 +34,7 @@ function edgePoint(fromX, fromY, toX, toY, hw = NODE_W / 2, hh = NODE_H / 2) {
   return { x: fromX + dx * s, y: fromY + dy * s }
 }
 
-function boundsFromIdeas(ideas, ideaIds, nodeW = NODE_W, nodeH = NODE_H, padding = 28) {
+function boundsFromIdeas(ideas, ideaIds, nodeW = NODE_W, nodeH = NODE_H, padding = GROUP_PADDING) {
   const items = ideas.filter(i => ideaIds.includes(i.id))
   if (items.length < 2) return null
   const hw = nodeW / 2
@@ -483,7 +485,7 @@ export default function Canvas({ projectId }) {
                     data-group-id={group.id}
                     x={bounds.x} y={bounds.y}
                     width={bounds.width} height={bounds.height}
-                    rx={26} ry={26}
+                    rx={GROUP_BORDER_RADIUS} ry={GROUP_BORDER_RADIUS}
                     fill={tc.group}
                     stroke={tc.border}
                     strokeWidth={highlighted ? 2.5 : 1.5}

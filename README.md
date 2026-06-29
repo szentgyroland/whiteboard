@@ -32,7 +32,7 @@ Open http://localhost:5173
 | Connect groups | Drag a port on one group bubble to another group bubble |
 | Delete connection | Click the connection line |
 | Edit idea | Double-click card, or select + click **Edit** |
-| Pan canvas | Drag empty space |
+| Pan canvas | Alt/middle/right-drag empty space |
 | Zoom canvas | Scroll wheel |
 
 ## Stack
