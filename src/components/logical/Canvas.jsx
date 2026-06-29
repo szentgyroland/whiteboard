@@ -33,7 +33,7 @@ function edgePoint(fromX, fromY, toX, toY, hw = NODE_W / 2, hh = NODE_H / 2) {
 }
 
 export default function Canvas({ projectId }) {
-  const { ideas: allIdeas, connections: allConnections, addIdea, updateIdea, deleteIdea, addConnection, deleteConnection } = useStore()
+  const { ideas: allIdeas, connections: allConnections, addIdea, updateIdea, deleteIdea, addConnection, deleteConnection, groupIdeas, degroupIdeas } = useStore()
   const ideas       = allIdeas[projectId] ?? []
   const connections = allConnections[projectId] ?? []
 
@@ -42,16 +42,21 @@ export default function Canvas({ projectId }) {
   const [zoom, setZoom] = useState(1)
 
   // ── Interaction state ──────────────────────────────────────────────────
-  const [selectedId,     setSelectedId]     = useState(null)
+  const [selectedIds,    setSelectedIds]    = useState([])
   const [editingId,      setEditingId]      = useState(null) // idea modal
   const [creatingAt,     setCreatingAt]     = useState(null) // {x,y} for new idea modal
   const [connectingFrom, setConnectingFrom] = useState(null) // idea id
   const [tempLine,       setTempLine]       = useState(null) // {x1,y1,x2,y2}
-  const [hoverTarget,    setHoverTarget]    = useState(null) // idea id (while connecting)
+  const [connectHoverTarget, setConnectHoverTarget] = useState(null) // idea id (while connecting)
+  const [groupHoverTarget, setGroupHoverTarget] = useState(null) // idea id (while dragging)
 
   // Raw drag state kept in refs to avoid re-render on every mousemove
   const dragRef = useRef(null)
   const containerRef = useRef(null)
+
+  useEffect(() => {
+    setSelectedIds(prev => prev.filter(id => ideas.some(i => i.id === id)))
+  }, [ideas])
 
   // ── Coordinate helpers ─────────────────────────────────────────────────
   const toCanvas = useCallback((clientX, clientY) => {
@@ -88,7 +93,7 @@ export default function Canvas({ projectId }) {
   // ── Pointer down on canvas (pan or create) ─────────────────────────────
   const handleCanvasPointerDown = useCallback((e) => {
     if (e.button !== 0) return
-    setSelectedId(null)
+    setSelectedIds([])
 
     dragRef.current = {
       type: 'pan',
@@ -104,7 +109,8 @@ export default function Canvas({ projectId }) {
   // ── Pointer down on node (drag) ────────────────────────────────────────
   const handleNodePointerDown = useCallback((e, ideaId) => {
     if (e.button !== 0) return
-    setSelectedId(ideaId)
+    if (e.ctrlKey || e.metaKey) return
+    setSelectedIds([ideaId])
     const idea = ideas.find(i => i.id === ideaId)
     if (!idea) return
 
@@ -117,6 +123,7 @@ export default function Canvas({ projectId }) {
       startIdeaY: idea.y,
       moved: false,
     }
+    setGroupHoverTarget(null)
     // Capture on the canvas container so we get move events everywhere
     containerRef.current.setPointerCapture(e.pointerId)
   }, [ideas])
@@ -171,17 +178,55 @@ export default function Canvas({ projectId }) {
     if (!d) return
 
     if (d.type === 'connect') {
-      if (hoverTarget && hoverTarget !== d.fromId) {
-        addConnection(projectId, d.fromId, hoverTarget)
+    if (connectHoverTarget && connectHoverTarget !== d.fromId) {
+      addConnection(projectId, d.fromId, connectHoverTarget)
       }
       setConnectingFrom(null)
       setTempLine(null)
-      setHoverTarget(null)
+    setConnectHoverTarget(null)
+    } else if (d.type === 'drag-node') {
+    if (d.moved && groupHoverTarget && groupHoverTarget !== d.ideaId) {
+      groupIdeas(projectId, [d.ideaId, groupHoverTarget])
+      setSelectedIds([d.ideaId, groupHoverTarget])
+    }
+    setGroupHoverTarget(null)
     }
 
     // If panning and barely moved → just a click (deselect handled by onPointerDown)
     dragRef.current = null
-  }, [projectId, hoverTarget, addConnection])
+  }, [projectId, connectHoverTarget, groupHoverTarget, addConnection, groupIdeas])
+
+  const handleNodeClick = useCallback((e, ideaId) => {
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedIds(prev =>
+        prev.includes(ideaId)
+          ? prev.filter(id => id !== ideaId)
+          : [...prev, ideaId]
+      )
+      return
+    }
+    setSelectedIds([ideaId])
+  }, [])
+
+  const handleNodePointerEnter = useCallback((ideaId) => {
+    const d = dragRef.current
+    if (!d) return
+    if (d.type === 'connect') {
+      setConnectHoverTarget(ideaId)
+    } else if (d.type === 'drag-node' && d.ideaId !== ideaId) {
+      setGroupHoverTarget(ideaId)
+    }
+  }, [])
+
+  const handleNodePointerLeave = useCallback((ideaId) => {
+    const d = dragRef.current
+    if (!d) return
+    if (d.type === 'connect' && connectHoverTarget === ideaId) {
+      setConnectHoverTarget(null)
+    } else if (d.type === 'drag-node' && groupHoverTarget === ideaId) {
+      setGroupHoverTarget(null)
+    }
+  }, [connectHoverTarget, groupHoverTarget])
 
   // ── Double click on canvas → create idea ──────────────────────────────
   const handleDoubleClick = useCallback((e) => {
@@ -200,6 +245,9 @@ export default function Canvas({ projectId }) {
 
   // ── Compute unique themes for group backgrounds ────────────────────────
   const themes = [...new Set(ideas.map(i => i.theme).filter(Boolean))]
+  const groupedIds = [...new Set(ideas.map(i => i.groupId).filter(Boolean))]
+  const selectedIdeas = ideas.filter(i => selectedIds.includes(i.id))
+  const hasGroupedSelection = selectedIdeas.some(i => i.groupId)
 
   // ── Zoom controls ──────────────────────────────────────────────────────
   const zoomIn  = () => setZoom(z => Math.min(MAX_ZOOM, z * 1.2))
@@ -267,6 +315,33 @@ export default function Canvas({ projectId }) {
               )
             })}
 
+            {/* Manual group backgrounds */}
+            {groupedIds.map(groupId => {
+              const groupMembers = ideas.filter(i => i.groupId === groupId)
+              if (groupMembers.length < 2) return null
+              const hw = NODE_W / 2
+              const hh = NODE_H / 2
+              const minX = Math.min(...groupMembers.map(i => i.x - hw)) - 30
+              const minY = Math.min(...groupMembers.map(i => i.y - hh)) - 30
+              const maxX = Math.max(...groupMembers.map(i => i.x + hw)) + 30
+              const maxY = Math.max(...groupMembers.map(i => i.y + hh)) + 30
+              return (
+                <rect
+                  key={groupId}
+                  x={minX}
+                  y={minY}
+                  width={maxX - minX}
+                  height={maxY - minY}
+                  rx={22}
+                  ry={22}
+                  fill="rgba(99, 102, 241, 0.06)"
+                  stroke="rgba(99, 102, 241, 0.35)"
+                  strokeWidth={1.5}
+                  strokeDasharray="8 5"
+                />
+              )
+            })}
+
             {/* Connection lines */}
             {connections.map(conn => {
               const from = ideas.find(i => i.id === conn.fromId)
@@ -328,13 +403,14 @@ export default function Canvas({ projectId }) {
             <IdeaNode
               key={idea.id}
               idea={idea}
-              selected={selectedId === idea.id}
+              selected={selectedIds.includes(idea.id)}
+              groupTarget={groupHoverTarget === idea.id}
               connecting={!!connectingFrom}
               onPointerDownNode={handleNodePointerDown}
               onPointerDownPort={handlePortPointerDown}
-              onPointerEnter={id => setHoverTarget(id)}
-              onPointerLeave={id => setHoverTarget(null)}
-              onClick={id => setSelectedId(id)}
+              onPointerEnter={handleNodePointerEnter}
+              onPointerLeave={handleNodePointerLeave}
+              onClick={handleNodeClick}
               onDoubleClick={id => setEditingId(id)}
             />
           ))}
@@ -392,12 +468,13 @@ export default function Canvas({ projectId }) {
         {/* Help text */}
         <div className="w-px h-6 bg-slate-200 dark:bg-slate-600" />
         <span className="text-[11px] text-slate-400 hidden sm:block">
-          Double-click to add · Drag ports to connect
+          Double-click to add · Ctrl/Cmd+Click multi-select · Drag over node to group
         </span>
       </div>
 
       {/* ── Selected idea actions ─────────────────────────────────── */}
-      {selectedId && (() => {
+      {selectedIds.length === 1 && (() => {
+        const selectedId = selectedIds[0]
         const idea = ideas.find(i => i.id === selectedId)
         if (!idea) return null
         return (
@@ -415,7 +492,7 @@ export default function Canvas({ projectId }) {
               onClick={() => {
                 if (confirm('Delete this idea?')) {
                   deleteIdea(projectId, selectedId)
-                  setSelectedId(null)
+                  setSelectedIds([])
                 }
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded-xl transition-colors font-medium"
@@ -426,7 +503,7 @@ export default function Canvas({ projectId }) {
               Delete
             </button>
             <button
-              onClick={() => setSelectedId(null)}
+              onClick={() => setSelectedIds([])}
               className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -436,6 +513,33 @@ export default function Canvas({ projectId }) {
           </div>
         )
       })()}
+
+      {selectedIds.length >= 2 && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+          <button
+            onClick={() => groupIdeas(projectId, selectedIds)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-xl transition-colors font-medium"
+          >
+            Group
+          </button>
+          {hasGroupedSelection && (
+            <button
+              onClick={() => degroupIdeas(projectId, selectedIds)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors font-medium"
+            >
+              Degroup
+            </button>
+          )}
+          <button
+            onClick={() => setSelectedIds([])}
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"/>
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* ── Idea modal ────────────────────────────────────────────── */}
       {(editingId || creatingAt) && (

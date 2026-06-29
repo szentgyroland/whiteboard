@@ -59,6 +59,11 @@ html, body, #root {
   z-index: 20;
 }
 
+.idea-node.group-target {
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.22), 0 10px 24px rgba(79,70,229,0.2);
+  z-index: 25;
+}
+
 .idea-node.dragging {
   cursor: grabbing;
   box-shadow: 0 12px 32px rgba(0,0,0,0.18);

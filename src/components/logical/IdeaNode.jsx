@@ -20,12 +20,13 @@ export { NODE_W, NODE_H }
 export default function IdeaNode({
   idea,
   selected,
+  groupTarget,
   connecting,        // true when we're in connection-drawing mode globally
   onPointerDownNode, // (e, ideaId) — start drag
   onPointerDownPort, // (e, ideaId, portSide) — start connection
   onPointerEnter,    // (ideaId) — notify canvas we're hovering this node
   onPointerLeave,    // (ideaId)
-  onClick,           // (ideaId)
+  onClick,           // (e, ideaId)
   onDoubleClick,     // (ideaId) — open edit modal
 }) {
   const themeColor = getThemeColor(idea.theme)
@@ -38,7 +39,7 @@ export default function IdeaNode({
 
   return (
     <div
-      className={`idea-node ${selected ? 'selected' : ''}`}
+      className={`idea-node ${selected ? 'selected' : ''} ${groupTarget ? 'group-target' : ''}`}
       style={{
         left: idea.x,
         top: idea.y,
@@ -47,7 +48,7 @@ export default function IdeaNode({
         borderColor: selected ? '#6366F1' : themeColor.border,
         minHeight: NODE_H,
       }}
-      onClick={e => { e.stopPropagation(); onClick(idea.id) }}
+      onClick={e => { e.stopPropagation(); onClick(e, idea.id) }}
       onDoubleClick={e => { e.stopPropagation(); onDoubleClick(idea.id) }}
       onPointerDown={e => { e.stopPropagation(); onPointerDownNode(e, idea.id) }}
       onPointerEnter={() => onPointerEnter(idea.id)}

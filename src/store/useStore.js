@@ -66,6 +66,7 @@ const useStore = create(
           priority: 'medium',
           status: 'backlog',
           deadline: null,
+          groupId: null,
           x: 400,
           y: 300,
           ...data,
@@ -100,6 +101,40 @@ const useStore = create(
             ...state.connections,
             [projectId]: (state.connections[projectId] ?? []).filter(
               c => c.fromId !== id && c.toId !== id
+            ),
+          },
+        }))
+      },
+
+      groupIdeas(projectId, ideaIds) {
+        const uniqueIdeaIds = [...new Set(ideaIds)]
+        if (uniqueIdeaIds.length < 2) return
+
+        const projectIdeas = get().ideas[projectId] ?? []
+        const existingGroupId = projectIdeas.find(
+          idea => uniqueIdeaIds.includes(idea.id) && idea.groupId
+        )?.groupId
+        const nextGroupId = existingGroupId ?? uuidv4()
+
+        set(state => ({
+          ideas: {
+            ...state.ideas,
+            [projectId]: (state.ideas[projectId] ?? []).map(idea =>
+              uniqueIdeaIds.includes(idea.id) ? { ...idea, groupId: nextGroupId } : idea
+            ),
+          },
+        }))
+      },
+
+      degroupIdeas(projectId, ideaIds) {
+        const uniqueIdeaIds = [...new Set(ideaIds)]
+        if (uniqueIdeaIds.length === 0) return
+
+        set(state => ({
+          ideas: {
+            ...state.ideas,
+            [projectId]: (state.ideas[projectId] ?? []).map(idea =>
+              uniqueIdeaIds.includes(idea.id) ? { ...idea, groupId: null } : idea
             ),
           },
         }))
