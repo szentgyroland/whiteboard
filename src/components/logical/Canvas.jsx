@@ -67,6 +67,18 @@ export default function Canvas({ projectId }) {
     }
   }, [pan, zoom])
 
+  const findIdeaAtPosition = useCallback((x, y, excludedIds = []) => {
+    const excluded = new Set(excludedIds)
+    for (let idx = ideas.length - 1; idx >= 0; idx--) {
+      const idea = ideas[idx]
+      if (!idea || excluded.has(idea.id)) continue
+      const insideX = x >= (idea.x - NODE_W / 2) && x <= (idea.x + NODE_W / 2)
+      const insideY = y >= (idea.y - NODE_H / 2) && y <= (idea.y + NODE_H / 2)
+      if (insideX && insideY) return idea
+    }
+    return null
+  }, [ideas])
+
   // ── Zoom ───────────────────────────────────────────────────────────────
   const handleWheel = useCallback((e) => {
     e.preventDefault()
@@ -165,6 +177,7 @@ export default function Canvas({ projectId }) {
     } else if (d.type === 'drag-node') {
       const dx = (e.clientX - d.startX) / zoom
       const dy = (e.clientY - d.startY) / zoom
+      const pointerPos = toCanvas(e.clientX, e.clientY)
       if (!d.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) d.moved = true
       if (d.moved) {
         d.dragIdeaIds.forEach(id => {
@@ -175,6 +188,17 @@ export default function Canvas({ projectId }) {
             y: pos.y + dy,
           })
         })
+
+        const targetIdea = findIdeaAtPosition(pointerPos.x, pointerPos.y, d.dragIdeaIds)
+        if (!targetIdea) {
+          setGroupHoverTarget(null)
+          return
+        }
+
+        const draggedAlreadyInTargetGroup = !!targetIdea.groupId && d.dragIdeaIds.every(
+          id => ideas.find(i => i.id === id)?.groupId === targetIdea.groupId
+        )
+        setGroupHoverTarget(draggedAlreadyInTargetGroup ? null : targetIdea.id)
       }
     } else if (d.type === 'connect') {
       const pos = toCanvas(e.clientX, e.clientY)
@@ -182,8 +206,10 @@ export default function Canvas({ projectId }) {
       if (src) {
         setTempLine({ x1: src.x, y1: src.y, x2: pos.x, y2: pos.y })
       }
+      const targetIdea = findIdeaAtPosition(pos.x, pos.y, [d.fromId])
+      setConnectHoverTarget(targetIdea?.id ?? null)
     }
-  }, [zoom, projectId, ideas, toCanvas, updateIdea])
+  }, [zoom, projectId, ideas, toCanvas, findIdeaAtPosition, updateIdea])
 
   // ── Pointer up ─────────────────────────────────────────────────────────
   const handlePointerUp = useCallback((e) => {
@@ -268,6 +294,10 @@ export default function Canvas({ projectId }) {
   const groupedIds = [...new Set(ideas.map(i => i.groupId).filter(Boolean))]
   const selectedIdeas = ideas.filter(i => selectedIds.includes(i.id))
   const hasGroupedSelection = selectedIdeas.some(i => i.groupId)
+  const previewGroupIds =
+    dragRef.current?.type === 'drag-node' && groupHoverTarget
+      ? [...new Set([...dragRef.current.dragIdeaIds, groupHoverTarget])]
+      : []
 
   // ── Zoom controls ──────────────────────────────────────────────────────
   const zoomIn  = () => setZoom(z => Math.min(MAX_ZOOM, z * 1.2))
@@ -346,21 +376,57 @@ export default function Canvas({ projectId }) {
               const maxX = Math.max(...groupMembers.map(i => i.x + hw)) + 30
               const maxY = Math.max(...groupMembers.map(i => i.y + hh)) + 30
               return (
+                <g key={groupId}>
+                  <rect
+                    x={minX}
+                    y={minY}
+                    width={maxX - minX}
+                    height={maxY - minY}
+                    rx={36}
+                    ry={36}
+                    fill="rgba(99, 102, 241, 0.14)"
+                    stroke="rgba(99, 102, 241, 0.65)"
+                    strokeWidth={2}
+                  />
+                  <text
+                    x={minX + 16}
+                    y={minY + 22}
+                    fontSize={11}
+                    fontWeight={700}
+                    fill="rgba(67, 56, 202, 0.95)"
+                    fontFamily="Inter, sans-serif"
+                  >
+                    Group
+                  </text>
+                </g>
+              )
+            })}
+
+            {/* Group preview bubble while dragging */}
+            {previewGroupIds.length >= 2 && (() => {
+              const previewMembers = ideas.filter(i => previewGroupIds.includes(i.id))
+              if (previewMembers.length < 2) return null
+              const hw = NODE_W / 2
+              const hh = NODE_H / 2
+              const minX = Math.min(...previewMembers.map(i => i.x - hw)) - 34
+              const minY = Math.min(...previewMembers.map(i => i.y - hh)) - 34
+              const maxX = Math.max(...previewMembers.map(i => i.x + hw)) + 34
+              const maxY = Math.max(...previewMembers.map(i => i.y + hh)) + 34
+              return (
                 <rect
-                  key={groupId}
                   x={minX}
                   y={minY}
                   width={maxX - minX}
                   height={maxY - minY}
-                  rx={22}
-                  ry={22}
-                  fill="rgba(99, 102, 241, 0.06)"
-                  stroke="rgba(99, 102, 241, 0.35)"
-                  strokeWidth={1.5}
-                  strokeDasharray="8 5"
+                  rx={40}
+                  ry={40}
+                  fill="rgba(99, 102, 241, 0.08)"
+                  stroke="rgba(99, 102, 241, 0.9)"
+                  strokeWidth={2}
+                  strokeDasharray="10 6"
                 />
               )
-            })}
+            })()}
 
             {/* Connection lines */}
             {connections.map(conn => {
