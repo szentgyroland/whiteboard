@@ -248,6 +248,8 @@ export default function Canvas({ projectId }) {
         ref={containerRef}
         className={containerCls}
         onPointerDown={handleCanvasPointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         onDoubleClick={handleDoubleClick}
       >
         <div
