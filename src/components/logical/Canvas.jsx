@@ -183,19 +183,19 @@ export default function Canvas({ projectId }) {
   const handleNodePointerDown = useCallback((e, ideaId) => {
     if (e.button !== 0) return
     const additive = e.metaKey || e.ctrlKey || e.shiftKey
-    let movingIds = [ideaId]
-    setSelectedIds(prev => {
-      if (additive) {
-        return prev.includes(ideaId)
+    if (additive) {
+      setSelectedIds(prev => (
+        prev.includes(ideaId)
           ? prev.filter(id => id !== ideaId)
           : [...prev, ideaId]
-      }
-      movingIds = prev.includes(ideaId) ? prev : [ideaId]
-      return movingIds
-    })
+      ))
+      return
+    }
+
+    const movingIds = selectedIds.includes(ideaId) ? selectedIds : [ideaId]
+    setSelectedIds(movingIds)
     const idea = ideas.find(i => i.id === ideaId)
     if (!idea) return
-    if (additive) return
 
     const movingIdSet = new Set(movingIds)
     const movingIdeas = ideas.filter(i => movingIdSet.has(i.id))
@@ -209,7 +209,7 @@ export default function Canvas({ projectId }) {
     }
     // Capture on the canvas container so we get move events everywhere
     containerRef.current.setPointerCapture(e.pointerId)
-  }, [ideas])
+  }, [ideas, selectedIds])
 
   // ── Pointer down on port (connect) ────────────────────────────────────
   const handlePortPointerDown = useCallback((e, ideaId, _portSide) => {
@@ -376,10 +376,11 @@ export default function Canvas({ projectId }) {
 
   // ── Double click on canvas → create idea ──────────────────────────────
   const handleDoubleClick = useCallback((e) => {
-    if (e.target !== containerRef.current) return
+    if (findIdeaIdAtPointer(e.clientX, e.clientY)) return
+    if (findGroupIdAtPointer(e.clientX, e.clientY)) return
     const pos = toCanvas(e.clientX, e.clientY)
     setCreatingAt(pos)
-  }, [toCanvas])
+  }, [toCanvas, findIdeaIdAtPointer, findGroupIdAtPointer])
 
   // ── Connection click to delete ─────────────────────────────────────────
   const handleConnectionClick = useCallback((e, connId) => {
@@ -726,7 +727,7 @@ export default function Canvas({ projectId }) {
         {/* Help text */}
         <div className="w-px h-6 bg-slate-200 dark:bg-slate-600" />
         <span className="text-[11px] text-slate-400">
-          Drag to marquee select · Alt/right-drag to pan · Drag ports to connect
+          Drag to marquee select · Alt/middle/right-drag to pan · Drag ports to connect
         </span>
       </div>
 

@@ -101,40 +101,38 @@ const useStore = create(
       },
 
       deleteIdea(projectId, id) {
-        set(state => ({
-          ideas: {
-            ...state.ideas,
-            [projectId]: (state.ideas[projectId] ?? []).filter(i => i.id !== id),
-          },
-          connections: {
-            ...state.connections,
-            [projectId]: (state.connections[projectId] ?? []).filter(
-              c => c.fromId !== id && c.toId !== id
-            ),
-          },
-          ...(() => {
-            const currentGroups = state.groups[projectId] ?? []
-            const updatedGroups = currentGroups
-              .map(g => ({
-                ...g,
-                ideaIds: (g.ideaIds ?? []).filter(ideaId => ideaId !== id),
-              }))
-              .filter(g => (g.ideaIds ?? []).length >= 2)
-            const remainingGroupIds = new Set(updatedGroups.map(g => g.id))
-            return {
-              groups: {
-                ...state.groups,
-                [projectId]: updatedGroups,
-              },
-              groupConnections: {
-                ...state.groupConnections,
-                [projectId]: (state.groupConnections[projectId] ?? []).filter(
-                  c => remainingGroupIds.has(c.fromGroupId) && remainingGroupIds.has(c.toGroupId)
-                ),
-              },
-            }
-          })(),
-        }))
+        set(state => {
+          const currentGroups = state.groups[projectId] ?? []
+          const updatedGroups = currentGroups
+            .map(g => ({
+              ...g,
+              ideaIds: (g.ideaIds ?? []).filter(ideaId => ideaId !== id),
+            }))
+            .filter(g => (g.ideaIds ?? []).length >= 2)
+          const remainingGroupIds = new Set(updatedGroups.map(g => g.id))
+          return {
+            ideas: {
+              ...state.ideas,
+              [projectId]: (state.ideas[projectId] ?? []).filter(i => i.id !== id),
+            },
+            connections: {
+              ...state.connections,
+              [projectId]: (state.connections[projectId] ?? []).filter(
+                c => c.fromId !== id && c.toId !== id
+              ),
+            },
+            groups: {
+              ...state.groups,
+              [projectId]: updatedGroups,
+            },
+            groupConnections: {
+              ...state.groupConnections,
+              [projectId]: (state.groupConnections[projectId] ?? []).filter(
+                c => remainingGroupIds.has(c.fromGroupId) && remainingGroupIds.has(c.toGroupId)
+              ),
+            },
+          }
+        })
       },
 
       // ─── Connection actions ───────────────────────────────────────────────
