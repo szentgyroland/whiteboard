@@ -110,23 +110,32 @@ export default function Canvas({ projectId }) {
   const handleNodePointerDown = useCallback((e, ideaId) => {
     if (e.button !== 0) return
     if (e.ctrlKey || e.metaKey) return
-    setSelectedIds([ideaId])
-    const idea = ideas.find(i => i.id === ideaId)
-    if (!idea) return
+    const dragIdeaIds = selectedIds.includes(ideaId) && selectedIds.length > 1
+      ? selectedIds
+      : [ideaId]
+    if (dragIdeaIds.length === 1) setSelectedIds([ideaId])
+
+    const startPositions = dragIdeaIds.reduce((acc, id) => {
+      const idea = ideas.find(i => i.id === id)
+      if (!idea) return acc
+      acc[id] = { x: idea.x, y: idea.y }
+      return acc
+    }, {})
+    if (Object.keys(startPositions).length === 0) return
 
     dragRef.current = {
       type: 'drag-node',
       ideaId,
+      dragIdeaIds,
       startX: e.clientX,
       startY: e.clientY,
-      startIdeaX: idea.x,
-      startIdeaY: idea.y,
+      startPositions,
       moved: false,
     }
     setGroupHoverTarget(null)
     // Capture on the canvas container so we get move events everywhere
     containerRef.current.setPointerCapture(e.pointerId)
-  }, [ideas])
+  }, [ideas, selectedIds])
 
   // ── Pointer down on port (connect) ────────────────────────────────────
   const handlePortPointerDown = useCallback((e, ideaId, _portSide) => {
@@ -158,9 +167,13 @@ export default function Canvas({ projectId }) {
       const dy = (e.clientY - d.startY) / zoom
       if (!d.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) d.moved = true
       if (d.moved) {
-        updateIdea(projectId, d.ideaId, {
-          x: d.startIdeaX + dx,
-          y: d.startIdeaY + dy,
+        d.dragIdeaIds.forEach(id => {
+          const pos = d.startPositions[id]
+          if (!pos) return
+          updateIdea(projectId, id, {
+            x: pos.x + dx,
+            y: pos.y + dy,
+          })
         })
       }
     } else if (d.type === 'connect') {
@@ -178,18 +191,19 @@ export default function Canvas({ projectId }) {
     if (!d) return
 
     if (d.type === 'connect') {
-    if (connectHoverTarget && connectHoverTarget !== d.fromId) {
-      addConnection(projectId, d.fromId, connectHoverTarget)
+      if (connectHoverTarget && connectHoverTarget !== d.fromId) {
+        addConnection(projectId, d.fromId, connectHoverTarget)
       }
       setConnectingFrom(null)
       setTempLine(null)
-    setConnectHoverTarget(null)
+      setConnectHoverTarget(null)
     } else if (d.type === 'drag-node') {
-    if (d.moved && groupHoverTarget && groupHoverTarget !== d.ideaId) {
-      groupIdeas(projectId, [d.ideaId, groupHoverTarget])
-      setSelectedIds([d.ideaId, groupHoverTarget])
-    }
-    setGroupHoverTarget(null)
+      if (d.moved && groupHoverTarget && !d.dragIdeaIds.includes(groupHoverTarget)) {
+        const nextSelection = [...new Set([...d.dragIdeaIds, groupHoverTarget])]
+        groupIdeas(projectId, nextSelection)
+        setSelectedIds(nextSelection)
+      }
+      setGroupHoverTarget(null)
     }
 
     // If panning and barely moved → just a click (deselect handled by onPointerDown)
@@ -213,10 +227,16 @@ export default function Canvas({ projectId }) {
     if (!d) return
     if (d.type === 'connect') {
       setConnectHoverTarget(ideaId)
-    } else if (d.type === 'drag-node' && d.ideaId !== ideaId) {
+    } else if (d.type === 'drag-node' && !d.dragIdeaIds.includes(ideaId)) {
+      const targetIdea = ideas.find(i => i.id === ideaId)
+      if (!targetIdea) return
+      const draggedAlreadyInTargetGroup = !!targetIdea.groupId && d.dragIdeaIds.every(
+        id => ideas.find(i => i.id === id)?.groupId === targetIdea.groupId
+      )
+      if (draggedAlreadyInTargetGroup) return
       setGroupHoverTarget(ideaId)
     }
-  }, [])
+  }, [ideas])
 
   const handleNodePointerLeave = useCallback((ideaId) => {
     const d = dragRef.current
@@ -468,7 +488,7 @@ export default function Canvas({ projectId }) {
         {/* Help text */}
         <div className="w-px h-6 bg-slate-200 dark:bg-slate-600" />
         <span className="text-[11px] text-slate-400 hidden sm:block">
-          Double-click to add · Ctrl/Cmd+Click multi-select · Drag over node to group
+          Double-click to add · Drag ports to connect · Ctrl/Cmd+Click multi-select · Drag over node to group
         </span>
       </div>
 

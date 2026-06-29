@@ -2,6 +2,20 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
 
+function cleanupSmallGroups(projectIdeas) {
+  const groupSizes = projectIdeas.reduce((acc, idea) => {
+    if (!idea.groupId) return acc
+    acc[idea.groupId] = (acc[idea.groupId] ?? 0) + 1
+    return acc
+  }, {})
+
+  return projectIdeas.map(idea =>
+    idea.groupId && (groupSizes[idea.groupId] ?? 0) < 2
+      ? { ...idea, groupId: null }
+      : idea
+  )
+}
+
 const useStore = create(
   persist(
     (set, get) => ({
@@ -92,18 +106,21 @@ const useStore = create(
       },
 
       deleteIdea(projectId, id) {
-        set(state => ({
-          ideas: {
-            ...state.ideas,
-            [projectId]: (state.ideas[projectId] ?? []).filter(i => i.id !== id),
-          },
-          connections: {
-            ...state.connections,
-            [projectId]: (state.connections[projectId] ?? []).filter(
-              c => c.fromId !== id && c.toId !== id
-            ),
-          },
-        }))
+        set(state => {
+          const remainingIdeas = (state.ideas[projectId] ?? []).filter(i => i.id !== id)
+          return {
+            ideas: {
+              ...state.ideas,
+              [projectId]: cleanupSmallGroups(remainingIdeas),
+            },
+            connections: {
+              ...state.connections,
+              [projectId]: (state.connections[projectId] ?? []).filter(
+                c => c.fromId !== id && c.toId !== id
+              ),
+            },
+          }
+        })
       },
 
       groupIdeas(projectId, ideaIds) {
@@ -119,9 +136,9 @@ const useStore = create(
         set(state => ({
           ideas: {
             ...state.ideas,
-            [projectId]: (state.ideas[projectId] ?? []).map(idea =>
+            [projectId]: cleanupSmallGroups((state.ideas[projectId] ?? []).map(idea =>
               uniqueIdeaIds.includes(idea.id) ? { ...idea, groupId: nextGroupId } : idea
-            ),
+            )),
           },
         }))
       },
@@ -133,9 +150,9 @@ const useStore = create(
         set(state => ({
           ideas: {
             ...state.ideas,
-            [projectId]: (state.ideas[projectId] ?? []).map(idea =>
+            [projectId]: cleanupSmallGroups((state.ideas[projectId] ?? []).map(idea =>
               uniqueIdeaIds.includes(idea.id) ? { ...idea, groupId: null } : idea
-            ),
+            )),
           },
         }))
       },
