@@ -76,6 +76,7 @@ export default function Canvas({ projectId }) {
     deleteIdeas,
     addGroupConnection,
     deleteGroupConnection,
+    updateGroup,
   } = useStore()
   const ideas       = allIdeas[projectId] ?? []
   const connections = allConnections[projectId] ?? []
@@ -155,7 +156,7 @@ export default function Canvas({ projectId }) {
   // ── Pointer down on canvas (marquee or pan) ────────────────────────────
   const handleCanvasPointerDown = useCallback((e) => {
     if (e.button !== 0 && e.button !== 1 && e.button !== 2) return
-    const isPanGesture = e.button === 1 || e.button === 2 || e.altKey
+    const isPanGesture = e.button === 0 || e.button === 1 || e.altKey
     if (isPanGesture) {
       dragRef.current = {
         type: 'pan',
@@ -213,6 +214,26 @@ export default function Canvas({ projectId }) {
     containerRef.current.setPointerCapture(e.pointerId)
   }, [ideas, selectedIds])
 
+  // ── Pointer down on group body (drag group members) ────────────────────
+  const handleGroupPointerDown = useCallback((e, groupId) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    const group = groups.find(g => g.id === groupId)
+    if (!group) return
+    const movingIdeas = ideas.filter(i => (group.ideaIds ?? []).includes(i.id))
+    if (movingIdeas.length === 0) return
+
+    setSelectedIds(movingIdeas.map(i => i.id))
+    dragRef.current = {
+      type: 'drag-group',
+      movingIdeas: movingIdeas.map(i => ({ id: i.id, x: i.x, y: i.y })),
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+    }
+    containerRef.current.setPointerCapture(e.pointerId)
+  }, [groups, ideas])
+
   // ── Pointer down on port (connect) ────────────────────────────────────
   const handlePortPointerDown = useCallback((e, ideaId, _portSide) => {
     if (e.button !== 0) return
@@ -253,7 +274,7 @@ export default function Canvas({ projectId }) {
       if (d.moved) {
         setPan({ x: d.startPanX + dx, y: d.startPanY + dy })
       }
-    } else if (d.type === 'drag-node') {
+    } else if (d.type === 'drag-node' || d.type === 'drag-group') {
       const dx = (e.clientX - d.startX) / zoom
       const dy = (e.clientY - d.startY) / zoom
       if (!d.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) d.moved = true
@@ -435,6 +456,17 @@ export default function Canvas({ projectId }) {
   const zoomOut = () => setZoom(z => Math.max(MIN_ZOOM, z / 1.2))
   const resetView = () => { setZoom(1); setPan({ x: 80, y: 60 }) }
 
+  const handleGroupNameClick = useCallback((e, group, index) => {
+    e.stopPropagation()
+    const fallbackName = `Group ${index + 1}`
+    const currentName = group.name?.trim() || fallbackName
+    const nextName = prompt('Rename group', currentName)
+    if (nextName === null) return
+    const trimmed = nextName.trim()
+    if (!trimmed || trimmed === currentName) return
+    updateGroup(projectId, group.id, { name: trimmed })
+  }, [projectId, updateGroup])
+
   const containerCls = [
     'canvas-container',
     connectingFrom || groupConnectingFrom ? 'connecting' : '',
@@ -490,7 +522,8 @@ export default function Canvas({ projectId }) {
                     stroke={tc.border}
                     strokeWidth={highlighted ? 2.5 : 1.5}
                     strokeDasharray="6 4"
-                    style={{ pointerEvents: 'all' }}
+                    style={{ pointerEvents: 'all', cursor: 'grab' }}
+                    onPointerDown={e => handleGroupPointerDown(e, group.id)}
                   />
                   <text
                     x={bounds.x + 12}
@@ -499,8 +532,10 @@ export default function Canvas({ projectId }) {
                     fontWeight={600}
                     fill={tc.text}
                     fontFamily="Inter, sans-serif"
+                    style={{ pointerEvents: 'all', cursor: 'text' }}
+                    onClick={e => handleGroupNameClick(e, group, idx)}
                   >
-                    {`Group ${idx + 1}`}
+                    {group.name?.trim() || `Group ${idx + 1}`}
                   </text>
                   <circle
                     cx={bounds.cx}
@@ -729,7 +764,7 @@ export default function Canvas({ projectId }) {
         {/* Help text */}
         <div className="w-px h-6 bg-slate-200 dark:bg-slate-600" />
         <span className="text-[11px] text-slate-400">
-          Drag to marquee select · Alt/middle/right-drag to pan · Drag ports to connect
+          Right-drag to marquee select · Left/middle/Alt-drag to pan · Drag ports to connect
         </span>
       </div>
 

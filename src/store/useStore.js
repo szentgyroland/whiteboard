@@ -171,16 +171,35 @@ const useStore = create(
         const uniqueIdeaIds = [...new Set(ideaIds)].filter(Boolean)
         if (uniqueIdeaIds.length < MIN_GROUP_SIZE) return null
         const id = uuidv4()
+        set(state => {
+          const currentGroups = state.groups[projectId] ?? []
+          return {
+            groups: {
+              ...state.groups,
+              [projectId]: [
+                ...currentGroups,
+                {
+                  id,
+                  ideaIds: uniqueIdeaIds,
+                  name: `Group ${currentGroups.length + 1}`,
+                  createdAt: Date.now(),
+                },
+              ],
+            },
+          }
+        })
+        return id
+      },
+
+      updateGroup(projectId, id, data) {
         set(state => ({
           groups: {
             ...state.groups,
-            [projectId]: [
-              ...(state.groups[projectId] ?? []),
-              { id, ideaIds: uniqueIdeaIds, createdAt: Date.now() },
-            ],
+            [projectId]: (state.groups[projectId] ?? []).map(g =>
+              g.id === id ? { ...g, ...data } : g
+            ),
           },
         }))
-        return id
       },
 
       ungroupIdeas(projectId, ideaIds) {
