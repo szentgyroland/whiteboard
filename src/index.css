@@ -75,16 +75,19 @@ html, body, #root {
   border: 2px solid white;
   box-shadow: 0 1px 4px rgba(0,0,0,0.2);
   opacity: 0;
-  transition: opacity 0.15s, transform 0.15s;
+  transition: opacity 0.15s, box-shadow 0.15s;
   cursor: crosshair;
   z-index: 40;
-  transform: scale(0.6);
 }
 
 .idea-node:hover .port,
 .idea-node.selected .port {
   opacity: 1;
-  transform: scale(1);
+  box-shadow: 0 2px 8px rgba(99,102,241,0.35);
+}
+
+.canvas-container.connecting .port {
+  opacity: 1;
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────── */

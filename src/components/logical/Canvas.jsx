@@ -48,6 +48,7 @@ export default function Canvas({ projectId }) {
   const [connectingFrom, setConnectingFrom] = useState(null) // idea id
   const [tempLine,       setTempLine]       = useState(null) // {x1,y1,x2,y2}
   const [hoverTarget,    setHoverTarget]    = useState(null) // idea id (while connecting)
+  const hoverTargetRef = useRef(null)
 
   // Raw drag state kept in refs to avoid re-render on every mousemove
   const dragRef = useRef(null)
@@ -162,6 +163,19 @@ export default function Canvas({ projectId }) {
       if (src) {
         setTempLine({ x1: src.x, y1: src.y, x2: pos.x, y2: pos.y })
       }
+
+      const target = ideas.find(i =>
+        i.id !== d.fromId &&
+        pos.x >= i.x - NODE_W / 2 &&
+        pos.x <= i.x + NODE_W / 2 &&
+        pos.y >= i.y - NODE_H / 2 &&
+        pos.y <= i.y + NODE_H / 2
+      )
+      const targetId = target?.id ?? null
+      if (hoverTargetRef.current !== targetId) {
+        hoverTargetRef.current = targetId
+        setHoverTarget(targetId)
+      }
     }
   }, [zoom, projectId, ideas, toCanvas, updateIdea])
 
@@ -171,17 +185,19 @@ export default function Canvas({ projectId }) {
     if (!d) return
 
     if (d.type === 'connect') {
-      if (hoverTarget && hoverTarget !== d.fromId) {
-        addConnection(projectId, d.fromId, hoverTarget)
+      const targetId = hoverTargetRef.current
+      if (targetId && targetId !== d.fromId) {
+        addConnection(projectId, d.fromId, targetId)
       }
       setConnectingFrom(null)
       setTempLine(null)
+      hoverTargetRef.current = null
       setHoverTarget(null)
     }
 
     // If panning and barely moved → just a click (deselect handled by onPointerDown)
     dragRef.current = null
-  }, [projectId, hoverTarget, addConnection])
+  }, [projectId, addConnection])
 
   // ── Double click on canvas → create idea ──────────────────────────────
   const handleDoubleClick = useCallback((e) => {
@@ -332,8 +348,18 @@ export default function Canvas({ projectId }) {
               connecting={!!connectingFrom}
               onPointerDownNode={handleNodePointerDown}
               onPointerDownPort={handlePortPointerDown}
-              onPointerEnter={id => setHoverTarget(id)}
-              onPointerLeave={id => setHoverTarget(null)}
+              onPointerEnter={id => {
+                if (connectingFrom) {
+                  hoverTargetRef.current = id
+                  setHoverTarget(id)
+                }
+              }}
+              onPointerLeave={id => {
+                if (connectingFrom && hoverTargetRef.current === id) {
+                  hoverTargetRef.current = null
+                  setHoverTarget(null)
+                }
+              }}
               onClick={id => setSelectedId(id)}
               onDoubleClick={id => setEditingId(id)}
             />
@@ -391,7 +417,7 @@ export default function Canvas({ projectId }) {
 
         {/* Help text */}
         <div className="w-px h-6 bg-slate-200 dark:bg-slate-600" />
-        <span className="text-[11px] text-slate-400 hidden sm:block">
+        <span className="text-[11px] text-slate-400">
           Double-click to add · Drag ports to connect
         </span>
       </div>
