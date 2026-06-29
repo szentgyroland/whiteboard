@@ -10,6 +10,8 @@ const useStore = create(
       currentProjectId: null,
       ideas: {},       // { [projectId]: Idea[] }
       connections: {}, // { [projectId]: Connection[] }
+      groups: {},      // { [projectId]: Group[] }
+      groupConnections: {}, // { [projectId]: GroupConnection[] }
 
       // ─── Project actions ─────────────────────────────────────────────────
       addProject(data) {
@@ -20,6 +22,8 @@ const useStore = create(
           currentProjectId: id,
           ideas: { ...state.ideas, [id]: [] },
           connections: { ...state.connections, [id]: [] },
+          groups: { ...state.groups, [id]: [] },
+          groupConnections: { ...state.groupConnections, [id]: [] },
         }))
         return id
       },
@@ -35,12 +39,18 @@ const useStore = create(
           const projects = state.projects.filter(p => p.id !== id)
           const ideas = { ...state.ideas }
           const connections = { ...state.connections }
+          const groups = { ...state.groups }
+          const groupConnections = { ...state.groupConnections }
           delete ideas[id]
           delete connections[id]
+          delete groups[id]
+          delete groupConnections[id]
           return {
             projects,
             ideas,
             connections,
+            groups,
+            groupConnections,
             currentProjectId:
               state.currentProjectId === id
                 ? (projects[0]?.id ?? null)
@@ -102,6 +112,28 @@ const useStore = create(
               c => c.fromId !== id && c.toId !== id
             ),
           },
+          ...(() => {
+            const currentGroups = state.groups[projectId] ?? []
+            const updatedGroups = currentGroups
+              .map(g => ({
+                ...g,
+                ideaIds: (g.ideaIds ?? []).filter(ideaId => ideaId !== id),
+              }))
+              .filter(g => (g.ideaIds ?? []).length >= 2)
+            const remainingGroupIds = new Set(updatedGroups.map(g => g.id))
+            return {
+              groups: {
+                ...state.groups,
+                [projectId]: updatedGroups,
+              },
+              groupConnections: {
+                ...state.groupConnections,
+                [projectId]: (state.groupConnections[projectId] ?? []).filter(
+                  c => remainingGroupIds.has(c.fromGroupId) && remainingGroupIds.has(c.toGroupId)
+                ),
+              },
+            }
+          })(),
         }))
       },
 
@@ -130,6 +162,111 @@ const useStore = create(
           connections: {
             ...state.connections,
             [projectId]: (state.connections[projectId] ?? []).filter(c => c.id !== id),
+          },
+        }))
+      },
+
+      // ─── Group actions ────────────────────────────────────────────────────
+      addGroup(projectId, ideaIds) {
+        const uniqueIdeaIds = [...new Set(ideaIds)].filter(Boolean)
+        if (uniqueIdeaIds.length < 2) return null
+        const id = uuidv4()
+        set(state => ({
+          groups: {
+            ...state.groups,
+            [projectId]: [
+              ...(state.groups[projectId] ?? []),
+              { id, ideaIds: uniqueIdeaIds, createdAt: Date.now() },
+            ],
+          },
+        }))
+        return id
+      },
+
+      ungroupIdeas(projectId, ideaIds) {
+        const target = new Set(ideaIds)
+        set(state => {
+          const remainingGroups = (state.groups[projectId] ?? []).filter(
+            g => !(g.ideaIds ?? []).some(id => target.has(id))
+          )
+          const remainingIds = new Set(remainingGroups.map(g => g.id))
+          return {
+            groups: {
+              ...state.groups,
+              [projectId]: remainingGroups,
+            },
+            groupConnections: {
+              ...state.groupConnections,
+              [projectId]: (state.groupConnections[projectId] ?? []).filter(
+                c => remainingIds.has(c.fromGroupId) && remainingIds.has(c.toGroupId)
+              ),
+            },
+          }
+        })
+      },
+
+      deleteIdeas(projectId, ideaIds) {
+        const target = new Set(ideaIds)
+        if (target.size === 0) return
+        set(state => {
+          const currentGroups = state.groups[projectId] ?? []
+          const updatedGroups = currentGroups
+            .map(g => ({
+              ...g,
+              ideaIds: (g.ideaIds ?? []).filter(id => !target.has(id)),
+            }))
+            .filter(g => (g.ideaIds ?? []).length >= 2)
+          const remainingGroupIds = new Set(updatedGroups.map(g => g.id))
+          return {
+            ideas: {
+              ...state.ideas,
+              [projectId]: (state.ideas[projectId] ?? []).filter(i => !target.has(i.id)),
+            },
+            connections: {
+              ...state.connections,
+              [projectId]: (state.connections[projectId] ?? []).filter(
+                c => !target.has(c.fromId) && !target.has(c.toId)
+              ),
+            },
+            groups: {
+              ...state.groups,
+              [projectId]: updatedGroups,
+            },
+            groupConnections: {
+              ...state.groupConnections,
+              [projectId]: (state.groupConnections[projectId] ?? []).filter(
+                c => remainingGroupIds.has(c.fromGroupId) && remainingGroupIds.has(c.toGroupId)
+              ),
+            },
+          }
+        })
+      },
+
+      addGroupConnection(projectId, fromGroupId, toGroupId) {
+        if (!fromGroupId || !toGroupId || fromGroupId === toGroupId) return
+        const existing = get().groupConnections[projectId] ?? []
+        const duplicate = existing.some(
+          c =>
+            (c.fromGroupId === fromGroupId && c.toGroupId === toGroupId) ||
+            (c.fromGroupId === toGroupId && c.toGroupId === fromGroupId)
+        )
+        if (duplicate) return
+        set(state => ({
+          groupConnections: {
+            ...state.groupConnections,
+            [projectId]: [
+              ...(state.groupConnections[projectId] ?? []),
+              { id: uuidv4(), fromGroupId, toGroupId },
+            ],
+          },
+        }))
+      },
+
+      deleteGroupConnection(projectId, id) {
+        set(state => ({
+          groupConnections: {
+            ...state.groupConnections,
+            [projectId]: (state.groupConnections[projectId] ?? []).filter(c => c.id !== id),
           },
         }))
       },

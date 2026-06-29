@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import useStore from '../../store/useStore'
 import IdeaNode, { NODE_W, NODE_H } from './IdeaNode'
 import IdeaModal from '../modals/IdeaModal'
-import { getThemeColor, getThemeBounds } from '../../utils/colors'
+import { getThemeColor } from '../../utils/colors'
 
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 3
@@ -32,23 +32,71 @@ function edgePoint(fromX, fromY, toX, toY, hw = NODE_W / 2, hh = NODE_H / 2) {
   return { x: fromX + dx * s, y: fromY + dy * s }
 }
 
+function boundsFromIdeas(ideas, ideaIds, nodeW = NODE_W, nodeH = NODE_H, padding = 28) {
+  const items = ideas.filter(i => ideaIds.includes(i.id))
+  if (items.length < 2) return null
+  const hw = nodeW / 2
+  const hh = nodeH / 2
+  const minX = Math.min(...items.map(i => i.x - hw)) - padding
+  const minY = Math.min(...items.map(i => i.y - hh)) - padding
+  const maxX = Math.max(...items.map(i => i.x + hw)) + padding
+  const maxY = Math.max(...items.map(i => i.y + hh)) + padding
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+    cx: (minX + maxX) / 2,
+    cy: (minY + maxY) / 2,
+  }
+}
+
+function rectsIntersect(a, b) {
+  return (
+    a.x <= b.x + b.width &&
+    a.x + a.width >= b.x &&
+    a.y <= b.y + b.height &&
+    a.y + a.height >= b.y
+  )
+}
+
 export default function Canvas({ projectId }) {
-  const { ideas: allIdeas, connections: allConnections, addIdea, updateIdea, deleteIdea, addConnection, deleteConnection } = useStore()
+  const {
+    ideas: allIdeas,
+    connections: allConnections,
+    groups: allGroups,
+    groupConnections: allGroupConnections,
+    updateIdea,
+    addConnection,
+    deleteConnection,
+    addGroup,
+    ungroupIdeas,
+    deleteIdeas,
+    addGroupConnection,
+    deleteGroupConnection,
+  } = useStore()
   const ideas       = allIdeas[projectId] ?? []
   const connections = allConnections[projectId] ?? []
+  const groups = allGroups[projectId] ?? []
+  const groupConnections = allGroupConnections[projectId] ?? []
 
   // ── Transform state ────────────────────────────────────────────────────
   const [pan,  setPan]  = useState({ x: 80, y: 60 })
   const [zoom, setZoom] = useState(1)
 
   // ── Interaction state ──────────────────────────────────────────────────
-  const [selectedId,     setSelectedId]     = useState(null)
+  const [selectedIds,    setSelectedIds]    = useState([])
   const [editingId,      setEditingId]      = useState(null) // idea modal
   const [creatingAt,     setCreatingAt]     = useState(null) // {x,y} for new idea modal
   const [connectingFrom, setConnectingFrom] = useState(null) // idea id
+  const [groupConnectingFrom, setGroupConnectingFrom] = useState(null) // group id
   const [tempLine,       setTempLine]       = useState(null) // {x1,y1,x2,y2}
+  const [tempGroupLine,  setTempGroupLine]  = useState(null) // {x1,y1,x2,y2}
   const [hoverTarget,    setHoverTarget]    = useState(null) // idea id (while connecting)
+  const [hoverGroupTarget, setHoverGroupTarget] = useState(null) // group id (while connecting)
   const hoverTargetRef = useRef(null)
+  const hoverGroupTargetRef = useRef(null)
+  const [marqueeRect, setMarqueeRect] = useState(null) // {x,y,width,height,startX,startY}
 
   // Raw drag state kept in refs to avoid re-render on every mousemove
   const dragRef = useRef(null)
@@ -69,6 +117,14 @@ export default function Canvas({ projectId }) {
     const ideaId = nodeEl?.dataset?.ideaId ?? null
     if (!ideaId || ideaId === excludeId) return null
     return ideaId
+  }, [])
+
+  const findGroupIdAtPointer = useCallback((clientX, clientY, excludeId = null) => {
+    const target = document.elementFromPoint(clientX, clientY)
+    const groupEl = target?.closest?.('[data-group-id]')
+    const groupId = groupEl?.dataset?.groupId ?? null
+    if (!groupId || groupId === excludeId) return null
+    return groupId
   }, [])
 
   // ── Zoom ───────────────────────────────────────────────────────────────
@@ -94,36 +150,61 @@ export default function Canvas({ projectId }) {
     return () => el.removeEventListener('wheel', handleWheel)
   }, [handleWheel])
 
-  // ── Pointer down on canvas (pan or create) ─────────────────────────────
+  // ── Pointer down on canvas (marquee or pan) ────────────────────────────
   const handleCanvasPointerDown = useCallback((e) => {
-    if (e.button !== 0) return
-    setSelectedId(null)
-
-    dragRef.current = {
-      type: 'pan',
-      startX: e.clientX,
-      startY: e.clientY,
-      startPanX: pan.x,
-      startPanY: pan.y,
-      moved: false,
+    if (e.button !== 0 && e.button !== 1 && e.button !== 2) return
+    const isPanGesture = e.button === 1 || e.button === 2 || e.altKey
+    if (isPanGesture) {
+      dragRef.current = {
+        type: 'pan',
+        startX: e.clientX,
+        startY: e.clientY,
+        startPanX: pan.x,
+        startPanY: pan.y,
+        moved: false,
+      }
+    } else {
+      const start = toCanvas(e.clientX, e.clientY)
+      dragRef.current = {
+        type: 'marquee',
+        startX: e.clientX,
+        startY: e.clientY,
+        startCanvasX: start.x,
+        startCanvasY: start.y,
+        moved: false,
+      }
+      setSelectedIds([])
+      setMarqueeRect({ x: start.x, y: start.y, width: 0, height: 0, startX: start.x, startY: start.y })
     }
     e.currentTarget.setPointerCapture(e.pointerId)
-  }, [pan])
+  }, [pan, toCanvas])
 
   // ── Pointer down on node (drag) ────────────────────────────────────────
   const handleNodePointerDown = useCallback((e, ideaId) => {
     if (e.button !== 0) return
-    setSelectedId(ideaId)
+    const additive = e.metaKey || e.ctrlKey || e.shiftKey
+    let movingIds = [ideaId]
+    setSelectedIds(prev => {
+      if (additive) {
+        return prev.includes(ideaId)
+          ? prev.filter(id => id !== ideaId)
+          : [...prev, ideaId]
+      }
+      movingIds = prev.includes(ideaId) ? prev : [ideaId]
+      return movingIds
+    })
     const idea = ideas.find(i => i.id === ideaId)
     if (!idea) return
+    if (additive) return
+
+    const movingIdSet = new Set(movingIds)
+    const movingIdeas = ideas.filter(i => movingIdSet.has(i.id))
 
     dragRef.current = {
       type: 'drag-node',
-      ideaId,
+      movingIdeas: movingIdeas.map(i => ({ id: i.id, x: i.x, y: i.y })),
       startX: e.clientX,
       startY: e.clientY,
-      startIdeaX: idea.x,
-      startIdeaY: idea.y,
       moved: false,
     }
     // Capture on the canvas container so we get move events everywhere
@@ -143,6 +224,21 @@ export default function Canvas({ projectId }) {
     containerRef.current.setPointerCapture(e.pointerId)
   }, [ideas])
 
+  // ── Pointer down on group port (connect groups) ────────────────────────
+  const handleGroupPortPointerDown = useCallback((e, groupId) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    const group = groups.find(g => g.id === groupId)
+    if (!group) return
+    const bounds = boundsFromIdeas(ideas, group.ideaIds ?? [])
+    if (!bounds) return
+
+    setGroupConnectingFrom(groupId)
+    setTempGroupLine({ x1: bounds.cx, y1: bounds.cy, x2: bounds.cx, y2: bounds.cy })
+    dragRef.current = { type: 'connect-group', fromGroupId: groupId }
+    containerRef.current.setPointerCapture(e.pointerId)
+  }, [groups, ideas])
+
   // ── Pointer move ───────────────────────────────────────────────────────
   const handlePointerMove = useCallback((e) => {
     const d = dragRef.current
@@ -160,11 +256,26 @@ export default function Canvas({ projectId }) {
       const dy = (e.clientY - d.startY) / zoom
       if (!d.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) d.moved = true
       if (d.moved) {
-        updateIdea(projectId, d.ideaId, {
-          x: d.startIdeaX + dx,
-          y: d.startIdeaY + dy,
+        d.movingIdeas.forEach(idea => {
+          updateIdea(projectId, idea.id, {
+            x: idea.x + dx,
+            y: idea.y + dy,
+          })
         })
       }
+    } else if (d.type === 'marquee') {
+      const pos = toCanvas(e.clientX, e.clientY)
+      const width = Math.abs(pos.x - d.startCanvasX)
+      const height = Math.abs(pos.y - d.startCanvasY)
+      if (!d.moved && (width > 2 || height > 2)) d.moved = true
+      setMarqueeRect({
+        x: Math.min(d.startCanvasX, pos.x),
+        y: Math.min(d.startCanvasY, pos.y),
+        width,
+        height,
+        startX: d.startCanvasX,
+        startY: d.startCanvasY,
+      })
     } else if (d.type === 'connect') {
       const pos = toCanvas(e.clientX, e.clientY)
       const src = ideas.find(i => i.id === d.fromId)
@@ -177,8 +288,23 @@ export default function Canvas({ projectId }) {
         hoverTargetRef.current = targetId
         setHoverTarget(targetId)
       }
+    } else if (d.type === 'connect-group') {
+      const pos = toCanvas(e.clientX, e.clientY)
+      const fromGroup = groups.find(g => g.id === d.fromGroupId)
+      if (fromGroup) {
+        const bounds = boundsFromIdeas(ideas, fromGroup.ideaIds ?? [])
+        if (bounds) {
+          setTempGroupLine({ x1: bounds.cx, y1: bounds.cy, x2: pos.x, y2: pos.y })
+        }
+      }
+
+      const targetId = findGroupIdAtPointer(e.clientX, e.clientY, d.fromGroupId)
+      if (hoverGroupTargetRef.current !== targetId) {
+        hoverGroupTargetRef.current = targetId
+        setHoverGroupTarget(targetId)
+      }
     }
-  }, [zoom, projectId, ideas, toCanvas, updateIdea, findIdeaIdAtPointer])
+  }, [zoom, projectId, ideas, groups, toCanvas, updateIdea, findIdeaIdAtPointer, findGroupIdAtPointer])
 
   // ── Pointer up ─────────────────────────────────────────────────────────
   const handlePointerUp = useCallback((e) => {
@@ -197,9 +323,41 @@ export default function Canvas({ projectId }) {
       setHoverTarget(null)
     }
 
+    if (d.type === 'connect-group') {
+      const targetId = hoverGroupTargetRef.current
+        ?? findGroupIdAtPointer(e.clientX, e.clientY, d.fromGroupId)
+      if (targetId && targetId !== d.fromGroupId) {
+        addGroupConnection(projectId, d.fromGroupId, targetId)
+      }
+      setGroupConnectingFrom(null)
+      setTempGroupLine(null)
+      hoverGroupTargetRef.current = null
+      setHoverGroupTarget(null)
+    }
+
+    if (d.type === 'marquee') {
+      if (d.moved && marqueeRect && (marqueeRect.width > 4 || marqueeRect.height > 4)) {
+        const selected = ideas
+          .filter(idea => rectsIntersect(
+            marqueeRect,
+            {
+              x: idea.x - NODE_W / 2,
+              y: idea.y - NODE_H / 2,
+              width: NODE_W,
+              height: NODE_H,
+            }
+          ))
+          .map(idea => idea.id)
+        setSelectedIds(selected)
+      } else {
+        setSelectedIds([])
+      }
+      setMarqueeRect(null)
+    }
+
     // If panning and barely moved → just a click (deselect handled by onPointerDown)
     dragRef.current = null
-  }, [projectId, addConnection, findIdeaIdAtPointer])
+  }, [projectId, ideas, marqueeRect, addConnection, addGroupConnection, findIdeaIdAtPointer, findGroupIdAtPointer])
 
   useEffect(() => {
     window.addEventListener('pointermove', handlePointerMove)
@@ -212,9 +370,13 @@ export default function Canvas({ projectId }) {
     }
   }, [handlePointerMove, handlePointerUp])
 
+  useEffect(() => {
+    setSelectedIds(prev => prev.filter(id => ideas.some(i => i.id === id)))
+  }, [ideas])
+
   // ── Double click on canvas → create idea ──────────────────────────────
   const handleDoubleClick = useCallback((e) => {
-    if (e.target !== containerRef.current && !e.target.classList.contains('canvas-world-bg')) return
+    if (e.target !== containerRef.current) return
     const pos = toCanvas(e.clientX, e.clientY)
     setCreatingAt(pos)
   }, [toCanvas])
@@ -227,8 +389,43 @@ export default function Canvas({ projectId }) {
     }
   }, [projectId, deleteConnection])
 
-  // ── Compute unique themes for group backgrounds ────────────────────────
-  const themes = [...new Set(ideas.map(i => i.theme).filter(Boolean))]
+  const handleGroupConnectionClick = useCallback((e, connId) => {
+    e.stopPropagation()
+    if (confirm('Delete this group connection?')) {
+      deleteGroupConnection(projectId, connId)
+    }
+  }, [projectId, deleteGroupConnection])
+
+  // ── Group helpers & actions ────────────────────────────────────────────
+  const groupBoundsById = groups.reduce((acc, group) => {
+    const bounds = boundsFromIdeas(ideas, group.ideaIds ?? [])
+    if (bounds) acc[group.id] = bounds
+    return acc
+  }, {})
+
+  const selectedGroups = groups.filter(group => {
+    const members = group.ideaIds ?? []
+    return members.length > 0 && members.every(id => selectedIds.includes(id))
+  })
+
+  const groupSelectedIdeas = () => {
+    if (selectedIds.length < 2) return
+    addGroup(projectId, selectedIds)
+    setSelectedIds([])
+  }
+
+  const ungroupSelectedIdeas = () => {
+    if (selectedIds.length === 0) return
+    ungroupIdeas(projectId, selectedIds)
+    setSelectedIds([])
+  }
+
+  const deleteSelectedIdeas = () => {
+    if (selectedIds.length === 0) return
+    if (!confirm(`Delete ${selectedIds.length} selected idea${selectedIds.length === 1 ? '' : 's'}?`)) return
+    deleteIdeas(projectId, selectedIds)
+    setSelectedIds([])
+  }
 
   // ── Zoom controls ──────────────────────────────────────────────────────
   const zoomIn  = () => setZoom(z => Math.min(MAX_ZOOM, z * 1.2))
@@ -237,7 +434,7 @@ export default function Canvas({ projectId }) {
 
   const containerCls = [
     'canvas-container',
-    connectingFrom ? 'connecting' : '',
+    connectingFrom || groupConnectingFrom ? 'connecting' : '',
     dragRef.current?.type === 'pan' && dragRef.current?.moved ? 'panning' : '',
   ].filter(Boolean).join(' ')
 
@@ -251,6 +448,7 @@ export default function Canvas({ projectId }) {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onDoubleClick={handleDoubleClick}
+        onContextMenu={e => e.preventDefault()}
       >
         <div
           className="canvas-world"
@@ -260,7 +458,7 @@ export default function Canvas({ projectId }) {
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           }}
         >
-          {/* SVG layer: theme groups + connections */}
+          {/* SVG layer: groups + connections */}
           <svg
             style={{
               position: 'absolute',
@@ -271,21 +469,25 @@ export default function Canvas({ projectId }) {
               height: '100%',
             }}
           >
-            {/* Theme group backgrounds */}
-            {themes.map(theme => {
-              const bounds = getThemeBounds(ideas, theme)
+            {/* Group backgrounds */}
+            {groups.map((group, idx) => {
+              const bounds = groupBoundsById[group.id]
               if (!bounds) return null
-              const tc = getThemeColor(theme)
+              const sampleIdea = ideas.find(i => (group.ideaIds ?? []).includes(i.id))
+              const tc = getThemeColor(sampleIdea?.theme)
+              const highlighted = group.id === hoverGroupTarget || group.id === groupConnectingFrom
               return (
-                <g key={theme}>
+                <g key={group.id}>
                   <rect
+                    data-group-id={group.id}
                     x={bounds.x} y={bounds.y}
                     width={bounds.width} height={bounds.height}
-                    rx={18} ry={18}
+                    rx={26} ry={26}
                     fill={tc.group}
                     stroke={tc.border}
-                    strokeWidth={1.5}
+                    strokeWidth={highlighted ? 2.5 : 1.5}
                     strokeDasharray="6 4"
+                    style={{ pointerEvents: 'all' }}
                   />
                   <text
                     x={bounds.x + 12}
@@ -295,8 +497,61 @@ export default function Canvas({ projectId }) {
                     fill={tc.text}
                     fontFamily="Inter, sans-serif"
                   >
-                    {theme}
+                    {`Group ${idx + 1}`}
                   </text>
+                  <circle
+                    cx={bounds.cx}
+                    cy={bounds.y}
+                    r={6}
+                    fill="#6366F1"
+                    stroke="#fff"
+                    strokeWidth={2}
+                    style={{ pointerEvents: 'all', cursor: 'crosshair' }}
+                    data-group-id={group.id}
+                    onPointerDown={e => handleGroupPortPointerDown(e, group.id)}
+                  />
+                  <circle
+                    cx={bounds.cx}
+                    cy={bounds.y + bounds.height}
+                    r={6}
+                    fill="#6366F1"
+                    stroke="#fff"
+                    strokeWidth={2}
+                    style={{ pointerEvents: 'all', cursor: 'crosshair' }}
+                    data-group-id={group.id}
+                    onPointerDown={e => handleGroupPortPointerDown(e, group.id)}
+                  />
+                </g>
+              )
+            })}
+
+            {/* Group connection lines */}
+            {groupConnections.map(conn => {
+              const from = groupBoundsById[conn.fromGroupId]
+              const to = groupBoundsById[conn.toGroupId]
+              if (!from || !to) return null
+              const p1 = edgePoint(from.cx, from.cy, to.cx, to.cy, from.width / 2, from.height / 2)
+              const p2 = edgePoint(to.cx, to.cy, from.cx, from.cy, to.width / 2, to.height / 2)
+              const d = makePath(p1.x, p1.y, p2.x, p2.y)
+              return (
+                <g key={conn.id} style={{ pointerEvents: 'stroke' }}>
+                  <path
+                    d={d}
+                    stroke="transparent"
+                    strokeWidth={14}
+                    fill="none"
+                    style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+                    onClick={e => handleGroupConnectionClick(e, conn.id)}
+                  />
+                  <path
+                    d={d}
+                    stroke="#4F46E5"
+                    strokeWidth={2.5}
+                    fill="none"
+                    strokeDasharray="7 4"
+                    strokeLinecap="round"
+                    markerEnd="url(#group-arrow)"
+                  />
                 </g>
               )
             })}
@@ -343,6 +598,16 @@ export default function Canvas({ projectId }) {
                 strokeLinecap="round"
               />
             )}
+            {tempGroupLine && (
+              <line
+                x1={tempGroupLine.x1} y1={tempGroupLine.y1}
+                x2={tempGroupLine.x2} y2={tempGroupLine.y2}
+                stroke="#4338CA"
+                strokeWidth={2.5}
+                strokeDasharray="7 4"
+                strokeLinecap="round"
+              />
+            )}
 
             {/* Arrow marker */}
             <defs>
@@ -354,15 +619,40 @@ export default function Canvas({ projectId }) {
               >
                 <path d="M0,0 L0,6 L8,3 z" fill="#94A3B8"/>
               </marker>
+              <marker
+                id="group-arrow"
+                markerWidth={8} markerHeight={8}
+                refX={6} refY={3}
+                orient="auto"
+              >
+                <path d="M0,0 L0,6 L8,3 z" fill="#4F46E5"/>
+              </marker>
             </defs>
           </svg>
+
+          {/* Marquee selection */}
+          {marqueeRect && (
+            <div
+              style={{
+                position: 'absolute',
+                left: marqueeRect.x,
+                top: marqueeRect.y,
+                width: marqueeRect.width,
+                height: marqueeRect.height,
+                border: '1px solid #6366F1',
+                background: 'rgba(99, 102, 241, 0.14)',
+                borderRadius: 8,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
 
           {/* Idea nodes */}
           {ideas.map(idea => (
             <IdeaNode
               key={idea.id}
               idea={idea}
-              selected={selectedId === idea.id}
+              selected={selectedIds.includes(idea.id) || hoverTarget === idea.id}
               connecting={!!connectingFrom}
               onPointerDownNode={handleNodePointerDown}
               onPointerDownPort={handlePortPointerDown}
@@ -378,7 +668,7 @@ export default function Canvas({ projectId }) {
                   setHoverTarget(null)
                 }
               }}
-              onClick={id => setSelectedId(id)}
+              onClick={id => setSelectedIds([id])}
               onDoubleClick={id => setEditingId(id)}
             />
           ))}
@@ -436,18 +726,16 @@ export default function Canvas({ projectId }) {
         {/* Help text */}
         <div className="w-px h-6 bg-slate-200 dark:bg-slate-600" />
         <span className="text-[11px] text-slate-400">
-          Double-click to add · Drag ports to connect
+          Drag to marquee select · Alt/right-drag to pan · Drag ports to connect
         </span>
       </div>
 
       {/* ── Selected idea actions ─────────────────────────────────── */}
-      {selectedId && (() => {
-        const idea = ideas.find(i => i.id === selectedId)
-        if (!idea) return null
-        return (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+      {selectedIds.length > 0 && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+          {selectedIds.length === 1 && (
             <button
-              onClick={() => setEditingId(selectedId)}
+              onClick={() => setEditingId(selectedIds[0])}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors font-medium"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -455,31 +743,37 @@ export default function Canvas({ projectId }) {
               </svg>
               Edit
             </button>
-            <button
-              onClick={() => {
-                if (confirm('Delete this idea?')) {
-                  deleteIdea(projectId, selectedId)
-                  setSelectedId(null)
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded-xl transition-colors font-medium"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"/>
-              </svg>
-              Delete
-            </button>
-            <button
-              onClick={() => setSelectedId(null)}
-              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"/>
-              </svg>
-            </button>
-          </div>
-        )
-      })()}
+          )}
+          <button
+            onClick={groupSelectedIdeas}
+            disabled={selectedIds.length < 2}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-xl transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Group
+          </button>
+          <button
+            onClick={ungroupSelectedIdeas}
+            disabled={selectedGroups.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Ungroup
+          </button>
+          <button
+            onClick={deleteSelectedIdeas}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded-xl transition-colors font-medium"
+          >
+            Delete all
+          </button>
+          <button
+            onClick={() => setSelectedIds([])}
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"/>
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* ── Idea modal ────────────────────────────────────────────── */}
       {(editingId || creatingAt) && (

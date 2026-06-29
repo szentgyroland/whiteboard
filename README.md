@@ -4,7 +4,7 @@ A lightweight, fast, locally-stored project planning app.
 
 ## Features
 
-- **Mind Map view** — 2D canvas with pan & zoom, draggable idea bubbles, bezier connection lines, and automatic theme-group backgrounds
+- **Mind Map view** — 2D canvas with pan & zoom, draggable idea bubbles, marquee multi-select, manual idea grouping bubbles, and bubble-to-bubble connections
 - **Board view** — Jira-style Kanban columns (Backlog → To Do → In Progress → In Review → Done)
 - **Multi-project** — unlimited projects, each with its own board and canvas
 - **Ideas** — title, description, theme, priority (Low / Medium / High / Critical), status, deadline
@@ -27,6 +27,9 @@ Open http://localhost:5173
 | Create idea (canvas) | Double-click empty space, or click **Add Idea** |
 | Move idea | Drag the card |
 | Connect ideas | Hover a card → drag the small port circle to another card |
+| Marquee select ideas | Drag on empty canvas (Alt or right-drag to pan) |
+| Group / ungroup / delete selected ideas | Use the top selection toolbar after marquee or click selection |
+| Connect groups | Drag a port on one group bubble to another group bubble |
 | Delete connection | Click the connection line |
 | Edit idea | Double-click card, or select + click **Edit** |
 | Pan canvas | Drag empty space |
