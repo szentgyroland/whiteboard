@@ -57,7 +57,8 @@ export default function ProjectModal({ project, onClose }) {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${slug || 'project'}.json`
+    const fileBaseName = slug || 'project'
+    link.download = `${fileBaseName}.json`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

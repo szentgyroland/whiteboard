@@ -40,7 +40,10 @@ function normalizeImportedProjectData(data, projectId) {
       theme: typeof idea?.theme === 'string' ? idea.theme : '',
       priority: typeof idea?.priority === 'string' ? idea.priority : 'medium',
       status: typeof idea?.status === 'string' ? idea.status : 'backlog',
-      deadline: typeof idea?.deadline === 'string' || idea?.deadline == null ? idea.deadline : null,
+      deadline:
+        typeof idea?.deadline === 'string' || idea?.deadline === null
+          ? idea.deadline
+          : null,
       x: Number.isFinite(idea?.x) ? idea.x : 400,
       y: Number.isFinite(idea?.y) ? idea.y : 300,
     }
