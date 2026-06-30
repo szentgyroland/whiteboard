@@ -56,15 +56,20 @@ function normalizeImportedProjectData(data, projectId) {
     }
   })
 
+  let unnamedGroupCount = 0
+  let validGroupCount = 0
   const groups = rawGroups
-    .map((group, index) => {
+    .map(group => {
       const mappedIdeaIds = [...new Set((group?.ideaIds ?? []).map(id => ideaIdMap.get(id)).filter(Boolean))]
       if (mappedIdeaIds.length < MIN_GROUP_SIZE) return null
+      validGroupCount += 1
+      const hasCustomName = typeof group?.name === 'string' && group.name.trim()
+      if (!hasCustomName) unnamedGroupCount += 1
       return {
         id: groupIdMap.get(group.id) ?? uuidv4(),
         ideaIds: mappedIdeaIds,
-        name: typeof group?.name === 'string' && group.name.trim() ? group.name : `Group ${index + 1}`,
-        createdAt: Number.isFinite(group?.createdAt) ? group.createdAt : now + index,
+        name: hasCustomName ? group.name : `Group ${unnamedGroupCount}`,
+        createdAt: Number.isFinite(group?.createdAt) ? group.createdAt : now + validGroupCount,
       }
     })
     .filter(Boolean)

@@ -35,7 +35,8 @@ export default function ProjectModal({ project, onClose }) {
       setDesc(importedDesc)
       setColor(importedColor)
       setError('')
-    } catch {
+    } catch (err) {
+      console.error('Project import failed', err)
       setImportedData(null)
       setImportFileName('')
       setImportError('Could not parse JSON project file.')
@@ -50,9 +51,12 @@ export default function ProjectModal({ project, onClose }) {
     if (!exported) return
     const slug = (project.name || 'project')
       .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
+      .slice(0, 60)
     const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
