@@ -3,21 +3,87 @@ import useStore from '../../store/useStore'
 import { PROJECT_COLORS } from '../../utils/colors'
 
 export default function ProjectModal({ project, onClose }) {
-  const { addProject, updateProject } = useStore()
+  const { addProject, addProjectFromImport, updateProject, exportProject } = useStore()
   const isEdit = !!project
 
   const [name,  setName]  = useState(project?.name  ?? '')
   const [desc,  setDesc]  = useState(project?.description ?? '')
   const [color, setColor] = useState(project?.color ?? PROJECT_COLORS[0])
   const [error, setError] = useState('')
+  const [importError, setImportError] = useState('')
+  const [importedData, setImportedData] = useState(null)
+  const [importFileName, setImportFileName] = useState('')
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Invalid project file')
+      }
+      const importedProject = parsed.project && typeof parsed.project === 'object' ? parsed.project : parsed
+      const importedName = typeof importedProject.name === 'string' ? importedProject.name.trim() : ''
+      const importedDesc = typeof importedProject.description === 'string' ? importedProject.description : ''
+      const importedColor = typeof importedProject.color === 'string' ? importedProject.color : PROJECT_COLORS[0]
+
+      setImportedData(parsed)
+      setImportFileName(file.name)
+      setImportError('')
+      setName(importedName)
+      setDesc(importedDesc)
+      setColor(importedColor)
+      setError('')
+    } catch {
+      setImportedData(null)
+      setImportFileName('')
+      setImportError('Could not parse JSON project file.')
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  const handleExport = () => {
+    if (!project) return
+    const exported = exportProject(project.id)
+    if (!exported) return
+    const slug = (project.name || 'project')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
+    const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${slug || 'project'}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!name.trim()) { setError('Project name is required'); return }
+    const trimmedName = name.trim()
+    if (!trimmedName) { setError('Project name is required'); return }
     if (isEdit) {
-      updateProject(project.id, { name: name.trim(), description: desc.trim(), color })
+      updateProject(project.id, { name: trimmedName, description: desc.trim(), color })
     } else {
-      addProject({ name: name.trim(), description: desc.trim(), color })
+      if (importedData) {
+        addProjectFromImport({
+          ...importedData,
+          project: {
+            ...(importedData.project ?? {}),
+            name: trimmedName,
+            description: desc.trim(),
+            color,
+          },
+        })
+      } else {
+        addProject({ name: trimmedName, description: desc.trim(), color })
+      }
     }
     onClose()
   }
@@ -33,18 +99,49 @@ export default function ProjectModal({ project, onClose }) {
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
             {isEdit ? 'Edit Project' : 'New Project'}
           </h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"/>
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {isEdit && (
+              <button
+                type="button"
+                onClick={handleExport}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                Export JSON
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {!isEdit && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                Import existing project (JSON)
+              </label>
+              <input
+                type="file"
+                accept="application/json,.json"
+                onChange={handleImport}
+                className="block w-full text-xs text-slate-500 dark:text-slate-300 file:mr-3 file:px-3 file:py-2 file:border-0 file:rounded-lg file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-950 dark:file:text-indigo-300"
+              />
+              {importFileName && (
+                <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+                  Loaded {importFileName}
+                </p>
+              )}
+              {importError && <p className="mt-1 text-xs text-red-500">{importError}</p>}
+            </div>
+          )}
+
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">

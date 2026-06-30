@@ -14,6 +14,102 @@ function nextGroupName(groups) {
   return `Group ${maxNumber + 1}`
 }
 
+function normalizeImportedProjectData(data, projectId) {
+  const payload = data && typeof data === 'object' ? data : {}
+  const projectPayload =
+    payload.project && typeof payload.project === 'object' ? payload.project : payload
+
+  const now = Date.now()
+  const rawIdeas = Array.isArray(payload.ideas) ? payload.ideas : []
+  const rawConnections = Array.isArray(payload.connections) ? payload.connections : []
+  const rawGroups = Array.isArray(payload.groups) ? payload.groups : []
+  const rawGroupConnections = Array.isArray(payload.groupConnections) ? payload.groupConnections : []
+
+  const ideaIdMap = new Map()
+  const ideas = rawIdeas.map((idea, index) => {
+    const nextId = uuidv4()
+    if (typeof idea?.id === 'string' && idea.id.trim()) {
+      ideaIdMap.set(idea.id, nextId)
+    }
+    return {
+      id: nextId,
+      projectId,
+      createdAt: Number.isFinite(idea?.createdAt) ? idea.createdAt : now + index,
+      title: typeof idea?.title === 'string' ? idea.title : 'New Idea',
+      description: typeof idea?.description === 'string' ? idea.description : '',
+      theme: typeof idea?.theme === 'string' ? idea.theme : '',
+      priority: typeof idea?.priority === 'string' ? idea.priority : 'medium',
+      status: typeof idea?.status === 'string' ? idea.status : 'backlog',
+      deadline: typeof idea?.deadline === 'string' || idea?.deadline == null ? idea.deadline : null,
+      x: Number.isFinite(idea?.x) ? idea.x : 400,
+      y: Number.isFinite(idea?.y) ? idea.y : 300,
+    }
+  })
+
+  const groupIdMap = new Map()
+  rawGroups.forEach(group => {
+    if (typeof group?.id === 'string' && group.id.trim()) {
+      groupIdMap.set(group.id, uuidv4())
+    }
+  })
+
+  const groups = rawGroups
+    .map((group, index) => {
+      const mappedIdeaIds = [...new Set((group?.ideaIds ?? []).map(id => ideaIdMap.get(id)).filter(Boolean))]
+      if (mappedIdeaIds.length < MIN_GROUP_SIZE) return null
+      return {
+        id: groupIdMap.get(group.id) ?? uuidv4(),
+        ideaIds: mappedIdeaIds,
+        name: typeof group?.name === 'string' && group.name.trim() ? group.name : `Group ${index + 1}`,
+        createdAt: Number.isFinite(group?.createdAt) ? group.createdAt : now + index,
+      }
+    })
+    .filter(Boolean)
+
+  const validIdeaIds = new Set(ideas.map(idea => idea.id))
+  const validGroupIds = new Set(groups.map(group => group.id))
+
+  const connections = rawConnections
+    .map(connection => ({
+      id: uuidv4(),
+      fromId: ideaIdMap.get(connection?.fromId),
+      toId: ideaIdMap.get(connection?.toId),
+    }))
+    .filter(
+      connection =>
+        connection.fromId &&
+        connection.toId &&
+        connection.fromId !== connection.toId &&
+        validIdeaIds.has(connection.fromId) &&
+        validIdeaIds.has(connection.toId)
+    )
+
+  const groupConnections = rawGroupConnections
+    .map(connection => ({
+      id: uuidv4(),
+      fromGroupId: groupIdMap.get(connection?.fromGroupId),
+      toGroupId: groupIdMap.get(connection?.toGroupId),
+    }))
+    .filter(
+      connection =>
+        connection.fromGroupId &&
+        connection.toGroupId &&
+        connection.fromGroupId !== connection.toGroupId &&
+        validGroupIds.has(connection.fromGroupId) &&
+        validGroupIds.has(connection.toGroupId)
+    )
+
+  const project = {
+    name: typeof projectPayload.name === 'string' ? projectPayload.name.trim() : '',
+    description: typeof projectPayload.description === 'string' ? projectPayload.description.trim() : '',
+    color: typeof projectPayload.color === 'string' && projectPayload.color.trim()
+      ? projectPayload.color
+      : '#6366F1',
+  }
+
+  return { project, ideas, connections, groups, groupConnections }
+}
+
 const useStore = create(
   persist(
     (set, get) => ({
@@ -36,6 +132,26 @@ const useStore = create(
           connections: { ...state.connections, [id]: [] },
           groups: { ...state.groups, [id]: [] },
           groupConnections: { ...state.groupConnections, [id]: [] },
+        }))
+        return id
+      },
+
+      addProjectFromImport(data) {
+        const id = uuidv4()
+        const imported = normalizeImportedProjectData(data, id)
+        const project = {
+          id,
+          createdAt: Date.now(),
+          color: '#6366F1',
+          ...imported.project,
+        }
+        set(state => ({
+          projects: [...state.projects, project],
+          currentProjectId: id,
+          ideas: { ...state.ideas, [id]: imported.ideas },
+          connections: { ...state.connections, [id]: imported.connections },
+          groups: { ...state.groups, [id]: imported.groups },
+          groupConnections: { ...state.groupConnections, [id]: imported.groupConnections },
         }))
         return id
       },
@@ -73,6 +189,25 @@ const useStore = create(
 
       setCurrentProject(id) {
         set({ currentProjectId: id })
+      },
+
+      exportProject(projectId) {
+        const state = get()
+        const project = state.projects.find(p => p.id === projectId)
+        if (!project) return null
+        return {
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          project: {
+            name: project.name,
+            description: project.description ?? '',
+            color: project.color ?? '#6366F1',
+          },
+          ideas: (state.ideas[projectId] ?? []).map(({ projectId: _, ...idea }) => idea),
+          connections: state.connections[projectId] ?? [],
+          groups: state.groups[projectId] ?? [],
+          groupConnections: state.groupConnections[projectId] ?? [],
+        }
       },
 
       // ─── Idea actions ─────────────────────────────────────────────────────
