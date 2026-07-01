@@ -3,7 +3,7 @@ import useStore from '../../store/useStore'
 import { PROJECT_COLORS } from '../../utils/colors'
 
 export default function ProjectModal({ project, onClose }) {
-  const { addProject, addProjectFromImport, updateProject, exportProject } = useStore()
+  const { addProject, addProjectFromImport, updateProject, exportProject, exportProjectBlueprint } = useStore()
   const isEdit = !!project
 
   const [name,  setName]  = useState(project?.name  ?? '')
@@ -13,6 +13,18 @@ export default function ProjectModal({ project, onClose }) {
   const [importError, setImportError] = useState('')
   const [importedData, setImportedData] = useState(null)
   const [importFileName, setImportFileName] = useState('')
+
+  const downloadProjectJson = (payload, fileName) => {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   const handleImport = async (e) => {
     const file = e.target.files?.[0]
@@ -57,16 +69,13 @@ export default function ProjectModal({ project, onClose }) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
       .slice(0, 60)
-    const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
     const fileBaseName = slug || 'project'
-    link.download = `${fileBaseName}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    downloadProjectJson(exported, `${fileBaseName}.json`)
+  }
+
+  const handleExportBlueprint = () => {
+    const blueprint = exportProjectBlueprint()
+    downloadProjectJson(blueprint, 'project-blueprint.json')
   }
 
   const handleSubmit = (e) => {
@@ -129,9 +138,18 @@ export default function ProjectModal({ project, onClose }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {!isEdit && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                Import existing project (JSON)
-              </label>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Import existing project (JSON)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleExportBlueprint}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Export Blueprint
+                </button>
+              </div>
               <input
                 type="file"
                 accept="application/json,.json"

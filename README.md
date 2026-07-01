@@ -7,7 +7,7 @@ A lightweight, fast, locally-stored project planning app.
 - **Mind Map view** — 2D canvas with pan & zoom, draggable idea bubbles, marquee multi-select, manual idea grouping bubbles, and bubble-to-bubble connections
 - **Board view** — Jira-style Kanban columns (Backlog → To Do → In Progress → In Review → Done)
 - **Multi-project** — unlimited projects, each with its own board and canvas
-- **Import / export** — create projects from exported JSON files and export full projects (ideas, groups, and connections) to JSON
+- **Import / export** — create projects from exported JSON files, export full projects (ideas, groups, and connections), and export an empty JSON blueprint for AI-assisted project creation
 - **Ideas** — title, description, theme, priority (Low / Medium / High / Critical), status, deadline
 - **Connections** — drag a port handle from one idea to another to link them; click a line to delete it
 - **Local storage** — all data stored in your browser; no server required
@@ -34,6 +34,7 @@ Open http://localhost:5173
 | Delete connection | Click the connection line |
 | Edit idea | Double-click card, or select + click **Edit** |
 | Import project | Click **New project** and choose a JSON file |
+| Export blueprint | Click **New project** → **Export Blueprint** |
 | Export project | Open **Edit Project** and click **Export JSON** |
 | Pan canvas | Left-drag empty space, or Alt/middle-drag |
 | Zoom canvas | Scroll wheel |

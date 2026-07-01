@@ -218,6 +218,21 @@ const useStore = create(
         }
       },
 
+      exportProjectBlueprint() {
+        return {
+          version: 1,
+          project: {
+            name: '',
+            description: '',
+            color: '#6366F1',
+          },
+          ideas: [],
+          connections: [],
+          groups: [],
+          groupConnections: [],
+        }
+      },
+
       // ─── Idea actions ─────────────────────────────────────────────────────
       addIdea(projectId, data) {
         const id = uuidv4()
