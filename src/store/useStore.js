@@ -218,6 +218,103 @@ const useStore = create(
         }
       },
 
+      exportProjectBlueprint() {
+        return {
+          version: 1,
+          project: {
+            name: 'AI Generated Project',
+            description: 'Replace this with your own project description.',
+            color: '#6366F1',
+          },
+          ideas: [
+            {
+              id: 'idea_research',
+              title: 'Research user needs',
+              description: 'Collect target user pain points and jobs-to-be-done.',
+              theme: 'Discovery',
+              priority: 'high',
+              status: 'in-progress',
+              deadline: '2026-07-15',
+              x: 320,
+              y: 240,
+              createdAt: 1760000000000,
+            },
+            {
+              id: 'idea_mvp',
+              title: 'Define MVP scope',
+              description: 'Select core features for first release.',
+              theme: 'Planning',
+              priority: 'medium',
+              status: 'backlog',
+              deadline: null,
+              x: 620,
+              y: 300,
+              createdAt: 1760000001000,
+            },
+          ],
+          connections: [
+            {
+              id: 'conn_research_to_mvp',
+              fromId: 'idea_research',
+              toId: 'idea_mvp',
+            },
+          ],
+          groups: [
+            {
+              id: 'group_phase1',
+              name: 'Phase 1',
+              ideaIds: ['idea_research', 'idea_mvp'],
+              createdAt: 1760000002000,
+            },
+          ],
+          groupConnections: [],
+          blueprintGuide: {
+            notes: [
+              'Keep top-level keys: version, project, ideas, connections, groups, groupConnections.',
+              'IDs can be any unique strings. The app remaps them internally on import.',
+              'priority: low | medium | high | critical.',
+              'status: backlog | todo | in-progress | review | done.',
+              'deadline must be YYYY-MM-DD or null.',
+            ],
+            fieldHelp: {
+              project: {
+                name: 'Project title shown in sidebar/header.',
+                description: 'Optional project summary.',
+                color: 'Hex color used for project badge (example: #6366F1).',
+              },
+              idea: {
+                id: 'Unique string ID for references from connections and groups.',
+                title: 'Short idea title.',
+                description: 'Longer optional explanation.',
+                theme: 'Optional label used for grouping ideas visually.',
+                priority: 'One of: low, medium, high, critical.',
+                status: 'One of: backlog, todo, in-progress, review, done.',
+                deadline: 'Date string YYYY-MM-DD or null if no deadline.',
+                x: 'Horizontal canvas position in pixels (larger moves right).',
+                y: 'Vertical canvas position in pixels (larger moves down).',
+                createdAt: 'Unix timestamp in milliseconds; can be any number.',
+              },
+              connection: {
+                id: 'Unique string ID.',
+                fromId: 'Source idea ID.',
+                toId: 'Target idea ID.',
+              },
+              group: {
+                id: 'Unique string ID for references from groupConnections.',
+                name: 'Group label shown on canvas.',
+                ideaIds: 'Array of idea IDs included in this group (minimum 2).',
+                createdAt: 'Unix timestamp in milliseconds.',
+              },
+              groupConnection: {
+                id: 'Unique string ID.',
+                fromGroupId: 'Source group ID.',
+                toGroupId: 'Target group ID.',
+              },
+            },
+          },
+        }
+      },
+
       // ─── Idea actions ─────────────────────────────────────────────────────
       addIdea(projectId, data) {
         const id = uuidv4()
