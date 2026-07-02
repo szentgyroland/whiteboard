@@ -235,8 +235,8 @@ const useStore = create(
               priority: 'high',
               status: 'in-progress',
               deadline: '2026-07-15',
-              x: 320,
-              y: 240,
+              x: 100,
+              y: 100,
               createdAt: 1760000000000,
             },
             {
@@ -247,8 +247,8 @@ const useStore = create(
               priority: 'medium',
               status: 'backlog',
               deadline: null,
-              x: 620,
-              y: 300,
+              x: 500,
+              y: 100,
               createdAt: 1760000001000,
             },
           ],
@@ -275,7 +275,70 @@ const useStore = create(
               'priority: low | medium | high | critical.',
               'status: backlog | todo | in-progress | review | done.',
               'deadline must be YYYY-MM-DD or null.',
+              'Follow layoutRules below exactly when choosing x/y for every idea. Do not eyeball coordinates.',
             ],
+            layoutRules: {
+              purpose:
+                "The canvas auto-draws a bounding box around every group's member ideas. If two groups' member coordinates overlap in space, their boxes visually collide. These rules prevent that.",
+              gridUnits: {
+                columnWidth: 400,
+                rowHeight: 220,
+                cardApproxWidth: 280,
+                cardApproxHeight: 140,
+                baseX: 100,
+                baseY: 100,
+              },
+              coordinateFormula:
+                'x = baseX + (columnIndex * columnWidth); y = baseY + (rowIndex * rowHeight). columnIndex and rowIndex are 0-based integers you choose per idea.',
+              columnsRepresentStages:
+                'Treat each workflow stage (e.g. Discovery, Planning, Build, Launch) as one column. Order columns left-to-right in the same order work actually happens, since connections read most cleanly when they point from one column to the very next column.',
+              rowsRepresentParallelWork:
+                'Within a single column/stage, stack parallel or independent tasks as separate rows (rowIndex 0, 1, 2...). Ideas that must happen in sequence within the same stage should instead go in sequential columns, not the same column.',
+              oneStageOnePerGroupZone:
+                "Assign each group to a contiguous range of columnIndex values that NO OTHER GROUP uses. Every idea listed in that group's ideaIds must have a columnIndex inside that group's reserved range. Never let two groups share a column.",
+              connectionsStayLocal:
+                "Prefer connections between ideas that are in the same column or adjacent columns. Avoid connecting ideas that are 2+ columns apart or in unrelated rows; if the workflow truly requires it, insert an intermediate idea instead so the diagram doesn't need long diagonal/crossing lines.",
+              worked_example: {
+                description:
+                  '3 stages (columns 0,1,2), first stage has 2 parallel tasks (rows 0,1), producing these coordinates:',
+                coordinates: [
+                  {
+                    idea: 'stage0_taskA',
+                    columnIndex: 0,
+                    rowIndex: 0,
+                    x: 100,
+                    y: 100,
+                  },
+                  {
+                    idea: 'stage0_taskB',
+                    columnIndex: 0,
+                    rowIndex: 1,
+                    x: 100,
+                    y: 320,
+                  },
+                  {
+                    idea: 'stage1_taskA',
+                    columnIndex: 1,
+                    rowIndex: 0,
+                    x: 500,
+                    y: 100,
+                  },
+                  {
+                    idea: 'stage2_taskA',
+                    columnIndex: 2,
+                    rowIndex: 0,
+                    x: 900,
+                    y: 100,
+                  },
+                ],
+              },
+              checklist_before_output: [
+                "Every group's member ideas share a columnIndex range that no other group touches.",
+                'No two ideas in the same column+row (i.e. no duplicate x,y pairs).',
+                "Every connection's fromId/toId are in the same or adjacent column.",
+                'x and y were computed from the formula above, not chosen arbitrarily.',
+              ],
+            },
             fieldHelp: {
               project: {
                 name: 'Project title shown in sidebar/header.',
@@ -290,8 +353,8 @@ const useStore = create(
                 priority: 'One of: low, medium, high, critical.',
                 status: 'One of: backlog, todo, in-progress, review, done.',
                 deadline: 'Date string YYYY-MM-DD or null if no deadline.',
-                x: 'Horizontal canvas position in pixels (larger moves right).',
-                y: 'Vertical canvas position in pixels (larger moves down).',
+                x: 'Horizontal canvas position in pixels. MUST be computed via layoutRules.coordinateFormula, not guessed.',
+                y: 'Vertical canvas position in pixels. MUST be computed via layoutRules.coordinateFormula, not guessed.',
                 createdAt: 'Unix timestamp in milliseconds; can be any number.',
               },
               connection: {
@@ -302,7 +365,8 @@ const useStore = create(
               group: {
                 id: 'Unique string ID for references from groupConnections.',
                 name: 'Group label shown on canvas.',
-                ideaIds: 'Array of idea IDs included in this group (minimum 2).',
+                ideaIds:
+                  "Array of idea IDs included in this group (minimum 2). All must occupy the group's reserved column range per layoutRules.",
                 createdAt: 'Unix timestamp in milliseconds.',
               },
               groupConnection: {
