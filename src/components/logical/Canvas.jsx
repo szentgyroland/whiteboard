@@ -621,6 +621,7 @@ export default function Canvas({ projectId }) {
                     strokeWidth={14}
                     fill="none"
                     style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+                    onPointerDown={e => e.stopPropagation()}
                     onClick={e => handleGroupConnectionClick(e, conn.id)}
                   />
                   <path
@@ -654,6 +655,7 @@ export default function Canvas({ projectId }) {
                     strokeWidth={12}
                     fill="none"
                     style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+                    onPointerDown={e => e.stopPropagation()}
                     onClick={e => handleConnectionClick(e, conn.id)}
                   />
                   <path
