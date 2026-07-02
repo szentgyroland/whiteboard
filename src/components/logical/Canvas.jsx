@@ -104,6 +104,7 @@ export default function Canvas({ projectId }) {
   const [tempGroupLine,  setTempGroupLine]  = useState(null) // {x1,y1,x2,y2}
   const [hoverTarget,    setHoverTarget]    = useState(null) // idea id (while connecting)
   const [hoverGroupTarget, setHoverGroupTarget] = useState(null) // group id (while connecting)
+  const [selectedConnection, setSelectedConnection] = useState(null) // {id, type: 'idea' | 'group'}
   const hoverTargetRef = useRef(null)
   const hoverGroupTargetRef = useRef(null)
   const [marqueeRect, setMarqueeRect] = useState(null) // {x,y,width,height,startX,startY}
@@ -184,6 +185,7 @@ export default function Canvas({ projectId }) {
         moved: false,
       }
       setSelectedIds([])
+      setSelectedConnection(null)
       setMarqueeRect({ x: start.x, y: start.y, width: 0, height: 0, startX: start.x, startY: start.y })
     }
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -415,17 +417,27 @@ export default function Canvas({ projectId }) {
   // ── Connection click to delete ─────────────────────────────────────────
   const handleConnectionClick = useCallback((e, connId) => {
     e.stopPropagation()
-    if (confirm('Delete this connection?')) {
-      deleteConnection(projectId, connId)
-    }
-  }, [projectId, deleteConnection])
+    setSelectedIds([])
+    setSelectedConnection({ id: connId, type: 'idea' })
+  }, [])
 
   const handleGroupConnectionClick = useCallback((e, connId) => {
     e.stopPropagation()
-    if (confirm('Delete this group connection?')) {
-      deleteGroupConnection(projectId, connId)
+    setSelectedIds([])
+    setSelectedConnection({ id: connId, type: 'group' })
+  }, [])
+
+  const deleteSelectedConnection = useCallback(() => {
+    if (!selectedConnection) return
+    if (selectedConnection.type === 'idea') {
+      if (!confirm('Delete this connection?')) return
+      deleteConnection(projectId, selectedConnection.id)
+    } else {
+      if (!confirm('Delete this group connection?')) return
+      deleteGroupConnection(projectId, selectedConnection.id)
     }
-  }, [projectId, deleteGroupConnection])
+    setSelectedConnection(null)
+  }, [selectedConnection, projectId, deleteConnection, deleteGroupConnection])
 
   // ── Group helpers & actions ────────────────────────────────────────────
   const groupBoundsById = groups.reduce((acc, group) => {
@@ -458,6 +470,28 @@ export default function Canvas({ projectId }) {
     deleteIdeas(projectId, selectedIds)
     setSelectedIds([])
   }
+
+  useEffect(() => {
+    if (!selectedConnection) return
+    const list = selectedConnection.type === 'idea' ? connections : groupConnections
+    if (!list.some(conn => conn.id === selectedConnection.id)) {
+      setSelectedConnection(null)
+    }
+  }, [selectedConnection, connections, groupConnections])
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!selectedConnection) return
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const target = e.target
+      const tag = target?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return
+      e.preventDefault()
+      deleteSelectedConnection()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedConnection, deleteSelectedConnection])
 
   // ── Zoom controls ──────────────────────────────────────────────────────
   const zoomIn  = () => setZoom(z => Math.min(MAX_ZOOM, z * 1.2))
@@ -578,6 +612,7 @@ export default function Canvas({ projectId }) {
               const p1 = edgePoint(from.cx, from.cy, to.cx, to.cy, from.width / 2, from.height / 2)
               const p2 = edgePoint(to.cx, to.cy, from.cx, from.cy, to.width / 2, to.height / 2)
               const d = makePath(p1.x, p1.y, p2.x, p2.y)
+              const selected = selectedConnection?.type === 'group' && selectedConnection?.id === conn.id
               return (
                 <g key={conn.id} style={{ pointerEvents: 'stroke' }}>
                   <path
@@ -590,8 +625,8 @@ export default function Canvas({ projectId }) {
                   />
                   <path
                     d={d}
-                    stroke="#4F46E5"
-                    strokeWidth={2.5}
+                    stroke={selected ? '#3730A3' : '#4F46E5'}
+                    strokeWidth={selected ? 3.5 : 2.5}
                     fill="none"
                     strokeDasharray="7 4"
                     strokeLinecap="round"
@@ -609,6 +644,7 @@ export default function Canvas({ projectId }) {
               const p1 = edgePoint(from.x, from.y, to.x, to.y)
               const p2 = edgePoint(to.x, to.y, from.x, from.y)
               const d  = makePath(p1.x, p1.y, p2.x, p2.y)
+              const selected = selectedConnection?.type === 'idea' && selectedConnection?.id === conn.id
               return (
                 <g key={conn.id} style={{ pointerEvents: 'stroke' }}>
                   {/* Wide invisible hit area */}
@@ -622,8 +658,8 @@ export default function Canvas({ projectId }) {
                   />
                   <path
                     d={d}
-                    stroke="#94A3B8"
-                    strokeWidth={2}
+                    stroke={selected ? '#475569' : '#94A3B8'}
+                    strokeWidth={selected ? 3 : 2}
                     fill="none"
                     strokeLinecap="round"
                     markerEnd="url(#arrow)"
@@ -771,7 +807,7 @@ export default function Canvas({ projectId }) {
         {/* Help text */}
         <div className="w-px h-6 bg-slate-200 dark:bg-slate-600" />
         <span className="text-[11px] text-slate-400">
-          Right-drag to marquee select · Left/middle/Alt-drag to pan · Drag ports to connect
+          Right-drag to marquee select · Left/middle/Alt-drag to pan · Drag ports to connect · Click arrows then press Delete
         </span>
       </div>
 
@@ -811,6 +847,28 @@ export default function Canvas({ projectId }) {
           </button>
           <button
             onClick={() => setSelectedIds([])}
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"/>
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {selectedConnection && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+          <span className="text-sm text-slate-600 dark:text-slate-300">
+            {selectedConnection.type === 'group' ? 'Group connection selected' : 'Connection selected'}
+          </span>
+          <button
+            onClick={deleteSelectedConnection}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded-xl transition-colors font-medium"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setSelectedConnection(null)}
             className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
           >
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
