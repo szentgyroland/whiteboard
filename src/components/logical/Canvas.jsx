@@ -6,7 +6,7 @@ import { getThemeColor } from '../../utils/colors'
 
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 3
-const GROUP_PADDING = 28
+const GROUP_PADDING = 36
 const GROUP_BORDER_RADIUS = 26
 
 // Quadratic bezier path between two center points
